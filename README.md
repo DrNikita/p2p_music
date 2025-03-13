@@ -1,6 +1,9 @@
 # Initial idea of the project
 Create p2p application for listening to music
 
+## Next steps plan
+- distributed data storage
+
 # Network sturtup:
 - to start bootstrap node
 ```bash
