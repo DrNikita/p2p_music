@@ -54,10 +54,10 @@ func NewDHT(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiad
 			if err := h.Connect(ctx, *peerInfo); err != nil {
 				logger.Error("Error while connecting to node", "PeerID", peerInfo.ID, "err", err)
 				errChan <- err
-			} else {
-				logger.Info("Connection established with bootstrap node", "PeerID", peerInfo.ID)
-				errChan <- nil
+				return
 			}
+			logger.Info("Connection established with bootstrap node", "PeerID", peerInfo.ID)
+			errChan <- nil
 		}(peerInfo)
 	}
 	wg.Wait()
