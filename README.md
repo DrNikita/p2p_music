@@ -17,6 +17,6 @@ go run . -dicovery <bootstrap node ID>
 ### Some notes:
 - UDP Buffer Sizes warning:
 ```bash
-    sudo sysctl -w net.core.rmem_max=7500000
-    sudo sysctl -w net.core.wmem_max=7500000
+sudo sysctl -w net.core.rmem_max=7500000
+sudo sysctl -w net.core.wmem_max=7500000
 ```
