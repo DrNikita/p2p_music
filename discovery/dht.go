@@ -101,7 +101,7 @@ func Discover(ctx context.Context, h host.Host, kdht *dht.IpfsDHT, rendezvous st
 		time.Sleep(time.Second * time.Duration(attempt+1))
 	}
 
-	ticker := time.NewTicker(time.Millisecond * 10)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	for {
