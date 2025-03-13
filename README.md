@@ -1,3 +1,6 @@
+# Initial idea of the project
+Create p2p application for listening to music
+
 # Network sturtup:
 - to start bootstrap node
 ```bash
