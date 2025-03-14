@@ -2,7 +2,12 @@
 Create p2p application for listening to music
 
 ## Next steps plan
-- distributed data storage
+- use kdht.Provide() to mark peer as song provider
+- use kdht.FindProviders() to find all song providers
+- store song as small parts of the file
+- store this small parts on disk of the peer
+- store path to the song in NoSQL/SQL DB
+- So, in this case I must provide an algorithm to divide a song to small pieces (ffmper can be used:)
 
 # Network sturtup
 - to start bootstrap node
