@@ -2,6 +2,15 @@
 Create p2p application for listening to music
 
 ## Next steps plan
+- - - Check how to work with STREAMS
+- store audiofile as a single file on disk, send it by parts, dividing this file into small parts(ffmpe for example)
+  and store this file in-memory
+- think about change-sender-mechanism (if current sender shut down) (md can connect to multiple peer, but read from one,
+  then if something happened change sender) 
+- if I will store audio frames in-memory one song will take for about 1GB => huynya
+    - mb I can optimize this algorithm by rewriting this frames when then were sent
+        - so in this case I think I can store a song as a single file for now
+---------------------------------------------------------------------------------------
 - use kdht.Provide() to mark peer as song provider
 - use kdht.FindProviders() to find all song providers
 - store song as small parts of the file
