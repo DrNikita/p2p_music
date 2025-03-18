@@ -1,3 +1,5 @@
 package domain
 
-func SaveSong() {}
+func ProvideFrame() {
+	
+}

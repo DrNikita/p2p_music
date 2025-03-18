@@ -8,6 +8,8 @@ import (
 	"os"
 	"p2p_transfer/discovery"
 
+	"fyne.io/fyne/app"
+	"fyne.io/fyne/widget"
 	"github.com/multiformats/go-multiaddr"
 
 	"github.com/libp2p/go-libp2p"
@@ -57,7 +59,11 @@ func main() {
 
 	go discovery.Discover(ctx, h, dht, nodeNamespace, logger)
 
-	select {}
+	a := app.New()
+	w := a.NewWindow("Hello World")
+
+	w.SetContent(widget.NewLabel("Hello World!"))
+	w.ShowAndRun()
 }
 
 func getCmdPeerDiscovery() []string {
