@@ -2,20 +2,55 @@ package discovery
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multihash"
 )
 
-func NewDHT(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiaddr, logger *slog.Logger) (*dht.IpfsDHT, error) {
+const (
+	nodeNamespace string = "music"
+	playlistTopic string = "playlist"
+)
+
+type DiscoveryService struct {
+	h      host.Host
+	kdht   *dht.IpfsDHT
+	logger *slog.Logger
+	// mb can add PlaylistStream here
+}
+
+func NewDiscoverService(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiaddr, logger *slog.Logger) (DiscoveryService, error) {
+	kdht, err := newDHT(ctx, h, bootstrapPeers, logger)
+	if err != nil {
+		return DiscoveryService{}, err
+	}
+
+	time.Sleep(time.Second)
+
+	go discover(ctx, h, kdht, nodeNamespace, logger)
+
+	return DiscoveryService{
+		h:      h,
+		kdht:   kdht,
+		logger: logger,
+	}, nil
+}
+
+func newDHT(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiaddr, logger *slog.Logger) (*dht.IpfsDHT, error) {
 	var opts []dht.Option
 
 	// if no bootstrap peers give this peer act as a bootstraping node
@@ -77,31 +112,16 @@ func NewDHT(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiad
 	}
 }
 
-func Discover(ctx context.Context, h host.Host, kdht *dht.IpfsDHT, rendezvous string, logger *slog.Logger) {
-	// Waiting for dht bootstrapping finish
-	time.Sleep(1 * time.Second)
-
+func discover(ctx context.Context, h host.Host, kdht *dht.IpfsDHT, rendezvous string, logger *slog.Logger) {
 	routingDiscovery := drouting.NewRoutingDiscovery(kdht)
-
-	peers := kdht.RoutingTable().ListPeers()
-	logger.Info("Existing peers", "count", len(peers))
-
-	var advertiseRetries int
-
-	if kdht.Mode() != dht.ModeServer {
-		advertiseRetries = 3
+	logger.Info("Advertising rendezvous point", "rendezvous", rendezvous)
+	if _, err := routingDiscovery.Advertise(ctx, rendezvous); err != nil {
+		logger.Error("Failed to advertise rendezvous point", "err", err)
+		return
 	}
 
-	for attempt := range advertiseRetries {
-		_, err := routingDiscovery.Advertise(ctx, rendezvous)
-		if err == nil {
-			break
-		}
-		logger.Error("Failed to advertise, retrying...", "err", err, "attempt", attempt+1)
-		time.Sleep(time.Second * time.Duration(attempt+1))
-	}
-
-	ticker := time.NewTicker(time.Second)
+	// Periodically find peers and connect to them
+	ticker := time.NewTicker(10 * time.Second) // Check for peers every 10 seconds
 	defer ticker.Stop()
 
 	for {
@@ -112,16 +132,18 @@ func Discover(ctx context.Context, h host.Host, kdht *dht.IpfsDHT, rendezvous st
 			peers, err := routingDiscovery.FindPeers(ctx, rendezvous)
 			if err != nil {
 				logger.Error("Failed to find peers", "err", err)
+				continue
 			}
 
 			for peer := range peers {
 				if peer.ID == h.ID() {
-					continue
+					continue // Skip self
 				}
 
 				if h.Network().Connectedness(peer.ID) != network.Connected {
 					_, err := h.Network().DialPeer(ctx, peer.ID)
 					if err != nil {
+						logger.Error("Failed to connect to peer", "PeerID", peer.ID, "err", err)
 						continue
 					}
 					logger.Info("Connected to peer", "PeerID", peer.ID)
@@ -129,4 +151,44 @@ func Discover(ctx context.Context, h host.Host, kdht *dht.IpfsDHT, rendezvous st
 			}
 		}
 	}
+}
+
+func (ds DiscoveryService) ProvideSong(ctx context.Context, filePath string) {
+	contentID, err := generateCIDFromFile(filePath)
+	if err := ds.kdht.Provide(ctx, contentID, true); err != nil {
+		ds.logger.Error("Failed to provide content", "err", err)
+		return
+	}
+
+	providers, err := ds.kdht.FindProviders(ctx, contentID)
+	if err != nil {
+		ds.logger.Error("Failed to find providers", "err", err)
+		return
+	}
+	ds.logger.Info("Providers found", "count", len(providers), "providers", providers)
+}
+
+func generateCIDFromFile(filePath string) (cid.Cid, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return cid.Undef, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a SHA-256 hasher
+	hasher := sha256.New()
+
+	// Stream the file content through the hasher
+	if _, err := io.Copy(hasher, file); err != nil {
+		return cid.Undef, fmt.Errorf("failed to hash file: %w", err)
+	}
+
+	// Encode the hash as a multihash
+	mh, err := multihash.Encode(hasher.Sum(nil), multihash.SHA2_256)
+	if err != nil {
+		return cid.Undef, fmt.Errorf("failed to encode multihash: %w", err)
+	}
+
+	// Create a CID using the multihash
+	return cid.NewCidV1(cid.Raw, mh), nil
 }

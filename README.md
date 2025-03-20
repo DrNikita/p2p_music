@@ -2,6 +2,10 @@
 Create p2p application for listening to music
 
 ## Next steps plan
+- create playlist topic to create access for all peers to all song CIDs
+- share files
+- find songs
+---------------------------------------------------------------------------------------
 - - - Check how to work with STREAMS
 - store audiofile as a single file on disk, send it by parts, dividing this file into small parts(ffmpe for example)
   and store this file in-memory

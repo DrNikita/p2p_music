@@ -6,20 +6,23 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"p2p_transfer/config"
 	"p2p_transfer/discovery"
 
-	"fyne.io/fyne/app"
-	"fyne.io/fyne/widget"
 	"github.com/multiformats/go-multiaddr"
 
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/libp2p/go-libp2p"
 )
 
-const (
-	nodeNamespace = "music"
-)
+const defaultAddr = "/ip4/0.0.0.0/tcp/0"
 
 func main() {
+	_, err := config.MustConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		AddSource: true,
 	}))
@@ -28,7 +31,7 @@ func main() {
 	defer cancel()
 
 	h, err := libp2p.New(
-		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
+		libp2p.ListenAddrStrings(defaultAddr),
 		libp2p.EnableAutoNATv2(),
 	)
 	if err != nil {
@@ -52,18 +55,14 @@ func main() {
 		fmt.Println("discovery PEER:", cmdPeer)
 	}
 
-	dht, err := discovery.NewDHT(ctx, h, discoveryPeers, logger)
+	discoveryService, err := discovery.NewDiscoverService(ctx, h, discoveryPeers, logger)
 	if err != nil {
 		panic(err)
 	}
 
-	go discovery.Discover(ctx, h, dht, nodeNamespace, logger)
+	discoveryService.ProvideSong(ctx, "/Users/nikita/flow /p2p_music/.data/music/pirat.mp3")
 
-	a := app.New()
-	w := a.NewWindow("Hello World")
-
-	w.SetContent(widget.NewLabel("Hello World!"))
-	w.ShowAndRun()
+	select {}
 }
 
 func getCmdPeerDiscovery() []string {
