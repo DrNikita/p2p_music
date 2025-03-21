@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"p2p_transfer/domain/pubsub/globalplaylist"
 	"sync"
 	"time"
 
@@ -29,11 +30,12 @@ const (
 type DiscoveryService struct {
 	h      host.Host
 	kdht   *dht.IpfsDHT
+	gp     *globalplaylist.GlobalPlaylist
 	logger *slog.Logger
 	// mb can add PlaylistStream here
 }
 
-func NewDiscoverService(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiaddr, logger *slog.Logger) (DiscoveryService, error) {
+func NewDiscoverService(ctx context.Context, h host.Host, gp *globalplaylist.GlobalPlaylist, bootstrapPeers []multiaddr.Multiaddr, logger *slog.Logger) (DiscoveryService, error) {
 	kdht, err := newDHT(ctx, h, bootstrapPeers, logger)
 	if err != nil {
 		return DiscoveryService{}, err
@@ -46,6 +48,7 @@ func NewDiscoverService(ctx context.Context, h host.Host, bootstrapPeers []multi
 	return DiscoveryService{
 		h:      h,
 		kdht:   kdht,
+		gp:     gp,
 		logger: logger,
 	}, nil
 }

@@ -2,6 +2,8 @@
 Create p2p application for listening to music
 
 ## Next steps plan
+- define how to store file paths(the only approach is to have DB?( ()
+---------------------------------------------------------------------------------------
 - create playlist topic to create access for all peers to all song CIDs
 - share files
 - find songs
