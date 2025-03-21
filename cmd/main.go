@@ -8,11 +8,13 @@ import (
 	"os"
 	"p2p_transfer/config"
 	"p2p_transfer/discovery"
+	"p2p_transfer/domain/pubsub/globalplaylist"
 
 	"github.com/multiformats/go-multiaddr"
 
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/libp2p/go-libp2p"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
 const defaultAddr = "/ip4/0.0.0.0/tcp/0"
@@ -35,7 +37,7 @@ func main() {
 		libp2p.EnableAutoNATv2(),
 	)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	fmt.Println("Node addresses:")
@@ -55,9 +57,20 @@ func main() {
 		fmt.Println("discovery PEER:", cmdPeer)
 	}
 
-	discoveryService, err := discovery.NewDiscoverService(ctx, h, discoveryPeers, logger)
+	// create a new PubSub service using the GossipSub router
+	ps, err := pubsub.NewGossipSub(ctx, h)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+	}
+
+	gp, err := globalplaylist.SubscribeToGlobalPlaylist(ctx, ps, h.ID())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	discoveryService, err := discovery.NewDiscoverService(ctx, h, gp, discoveryPeers, logger)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	discoveryService.ProvideSong(ctx, "/Users/nikita/flow /p2p_music/.data/music/pirat.mp3")
