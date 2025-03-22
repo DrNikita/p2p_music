@@ -20,12 +20,8 @@ import (
 )
 
 const (
-	GlobalPlaylistTopic = "global_playlist"
-)
-
-const (
-	getGlobalPlaylistProtocol  = "/playlist/get/1.0.0"
-	sendGlobalPlaylistProtocol = "/playlist/send/1.0.0"
+	globalPlaylistTopic       = "global_playlist"
+	getGlobalPlaylistProtocol = "/playlist/get/1.0.0"
 )
 
 type GlobalPlaylist struct {
@@ -52,7 +48,7 @@ type Song struct {
 }
 
 func SetupGlobalPlaylist(ctx context.Context, ps *pubsub.PubSub, h host.Host, logger *slog.Logger) (*GlobalPlaylist, error) {
-	topic, err := ps.Join(GlobalPlaylistTopic)
+	topic, err := ps.Join(globalPlaylistTopic)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +170,7 @@ func getPlaylistHolder(h host.Host) peer.ID {
 }
 
 func (p *GlobalPlaylist) ListPeers() []peer.ID {
-	return p.ps.ListPeers(GlobalPlaylistTopic)
+	return p.ps.ListPeers(globalPlaylistTopic)
 }
 
 func generateCIDFromFile(filePath string) (cid.Cid, error) {
