@@ -1,41 +1,38 @@
 package domain
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"io"
-	"time"
+	"os"
 
-	"github.com/ebitengine/oto/v3"
-	"github.com/hajimehoshi/go-mp3"
+	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 )
 
-func StreamMP3FromReader(reader io.Reader) {
-	// Декодируем MP3 из переданного потока
-	decodedMp3, err := mp3.NewDecoder(reader)
+func generateCIDFromFile(filePath string) (cid.Cid, error) {
+	file, err := os.Open(filePath)
 	if err != nil {
-		panic("mp3.NewDecoder failed: " + err.Error())
+		return cid.Undef, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a SHA-256 hasher
+	hasher := sha256.New()
+
+	// Stream the file content through the hasher
+	if _, err := io.Copy(hasher, file); err != nil {
+		return cid.Undef, fmt.Errorf("failed to hash file: %w", err)
 	}
 
-	// Настройка oto контекста
-	op := &oto.NewContextOptions{
-		SampleRate:   44100,
-		ChannelCount: 2,
-		Format:       oto.FormatSignedInt16LE,
-	}
-	otoCtx, readyChan, err := oto.NewContext(op)
+	// Encode the hash as a multihash
+	mh, err := multihash.Encode(hasher.Sum(nil), multihash.SHA2_256)
 	if err != nil {
-		panic("oto.NewContext failed: " + err.Error())
-	}
-	<-readyChan
-
-	player := otoCtx.NewPlayer(decodedMp3)
-	player.Play()
-
-	// Ждём окончания воспроизведения
-	for player.IsPlaying() {
-		time.Sleep(time.Millisecond * 100)
+		return cid.Undef, fmt.Errorf("failed to encode multihash: %w", err)
 	}
 
-	if err = player.Close(); err != nil {
-		panic("player.Close failed: " + err.Error())
-	}
+	// Create a CID using the multihash
+	return cid.NewCidV1(cid.Raw, mh), nil
 }
+
+func getSongInfo() {}

@@ -58,8 +58,6 @@ func main() {
 		panic(err)
 	}
 
-	// Create a resource manager
-
 	_, err = config.MustConfig()
 	if err != nil {
 		log.Fatal(err)
@@ -117,7 +115,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	gp.RegisterStreamHandlers(ctx, h)
+	gp.RegisterGetPlaylistHandler(ctx, h)
 
 	select {}
 }
