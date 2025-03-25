@@ -118,6 +118,12 @@ func main() {
 	}
 	gp.RegisterGetPlaylistHandler(ctx, h)
 
+	////////////////
+	/*
+	   TESTING
+	*/
+	///////////////
+
 	if len(discoveryPeers) == 0 {
 		select {}
 	}
@@ -147,6 +153,12 @@ func main() {
 	}
 
 	select {}
+
+	////////////////
+	/*
+	   TESTING
+	*/
+	///////////////
 }
 
 func getCmdPeerDiscovery() []string {
