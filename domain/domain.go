@@ -126,7 +126,6 @@ func (dm *DomainManager) ReceiveSongStream(ctx context.Context, song store.Song,
 			if writeErr != nil {
 				return writeErr
 			}
-			fmt.Printf("Получен чанк: %d байт\n", n)
 		}
 		if err == io.EOF {
 			fmt.Println("Передача завершена")
