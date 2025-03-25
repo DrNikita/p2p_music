@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -35,9 +36,18 @@ func NewSong(filePath string) (Song, error) {
 		return Song{}, err
 	}
 
+	var format string
+	switch {
+	case strings.HasSuffix(filePath, "mp3"):
+		format = "mp3"
+	case strings.HasSuffix(filePath, "ogg"):
+		format = "ogg"
+	}
+
 	return Song{
-		Title: file.Name(),
-		CID:   cid,
+		Title:  file.Name(),
+		Format: format,
+		CID:    cid,
 	}, nil
 }
 

@@ -112,7 +112,7 @@ func (dm *DomainManager) ReceiveSongStream(ctx context.Context, song store.Song,
 	}
 
 	// Создаем файл для записи
-	outFile, err := os.Create("newfile.ogg")
+	outFile, err := os.Create(fmt.Sprintf("newfile.%s", song.Format))
 	if err != nil {
 		return err
 	}

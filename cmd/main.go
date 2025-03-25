@@ -122,7 +122,7 @@ func main() {
 		select {}
 	}
 
-	song, err := store.NewSong("/Users/nikita/flow /p2p_music/.data/music/pirat.ogg")
+	song, err := store.NewSong("/Users/nikita/flow /p2p_music/.data/music/chsv.mp3")
 	if err != nil {
 		log.Fatal(err)
 	}
