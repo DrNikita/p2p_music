@@ -128,7 +128,7 @@ func (dm *DomainManager) ReceiveSongStream(ctx context.Context, song store.Song,
 			}
 		}
 		if err == io.EOF {
-			fmt.Println("Передача завершена")
+			dm.logger.Info("Audio stream ended")
 			break
 		} else if err != nil {
 			return err
