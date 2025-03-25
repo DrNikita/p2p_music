@@ -1,14 +1,14 @@
-package playlist
+package store
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"math/rand/v2"
-	"time"
+	"strings"
 
-	"github.com/ipfs/go-cid"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -29,18 +29,6 @@ type GlobalPlaylist struct {
 	sub   *pubsub.Subscription
 
 	self peer.ID
-}
-
-type Song struct {
-	Title    string
-	Artist   string
-	Album    string
-	Year     int
-	Format   string
-	Bitrate  int
-	FileSize int64
-	Duration time.Duration
-	CID      cid.Cid
 }
 
 func SetupGlobalPlaylist(ctx context.Context, ps *pubsub.PubSub, h host.Host, logger *slog.Logger) (*GlobalPlaylist, error) {
@@ -70,7 +58,6 @@ func SetupGlobalPlaylist(ctx context.Context, ps *pubsub.PubSub, h host.Host, lo
 	}
 
 	go p.streamListenerLoop()
-
 	return p, nil
 }
 
@@ -125,7 +112,18 @@ func (p *GlobalPlaylist) AdvertiseSong(song Song) error {
 		return err
 	}
 
+	p.Songs = append(p.Songs, song)
+
 	return p.topic.Publish(p.ctx, songBytes)
+}
+
+func (p *GlobalPlaylist) Search(songName string) (Song, error) {
+	for _, song := range p.Songs {
+		if strings.ContainsAny(song.Title, songName) {
+			return song, nil
+		}
+	}
+	return Song{}, fmt.Errorf("failed to find song for provided name %s", songName)
 }
 
 func (p *GlobalPlaylist) streamListenerLoop() {
@@ -160,9 +158,7 @@ func getPlaylistHolder(h host.Host) peer.ID {
 	if len(peers) == 0 {
 		return ""
 	}
-
 	return peers[rand.IntN(len(peers))]
-
 }
 
 func (p *GlobalPlaylist) ListPeers() []peer.ID {

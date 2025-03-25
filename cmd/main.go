@@ -8,7 +8,8 @@ import (
 	"os"
 	"p2p-music/config"
 	"p2p-music/discovery"
-	"p2p-music/domain/playlist"
+	"p2p-music/domain"
+	"p2p-music/domain/store"
 	"time"
 
 	"github.com/multiformats/go-multiaddr"
@@ -111,11 +112,39 @@ func main() {
 
 	time.Sleep(5 * time.Second)
 
-	gp, err := playlist.SetupGlobalPlaylist(ctx, ps, h, logger)
+	gp, err := store.SetupGlobalPlaylist(ctx, ps, h, logger)
 	if err != nil {
 		log.Fatal(err)
 	}
 	gp.RegisterGetPlaylistHandler(ctx, h)
+
+	if len(discoveryPeers) == 0 {
+		select {}
+	}
+
+	song, err := store.NewSong("/Users/nikita/flow /p2p_music/.data/music/pirat.mp3")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	domainManager := domain.NewDomainManager(h, gp, kdht, logger)
+	err = domainManager.PromoteSong(ctx, song)
+	if err != nil {
+		log.Fatal(err)
+	}
+	domainManager.RegisterProtocols(ctx)
+
+	songProviders, err := domainManager.FindSongProviders(ctx, song)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(songProviders) != 0 {
+		err = domainManager.ReceiveSongStream(ctx, song, songProviders[len(songProviders)-1].ID)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	select {}
 }
