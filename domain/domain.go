@@ -111,10 +111,21 @@ func (dm *DomainManager) ReceiveSongStream(ctx context.Context, song store.Song,
 		return err
 	}
 
+	// Создаем файл для записи
+	outFile, err := os.Create("newfile.ogg")
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
 	buf := make([]byte, 4096)
 	for {
 		n, err := stream.Read(buf)
 		if n > 0 {
+			_, writeErr := outFile.Write(buf[:n])
+			if writeErr != nil {
+				return writeErr
+			}
 			fmt.Printf("Получен чанк: %d байт\n", n)
 		}
 		if err == io.EOF {
@@ -126,10 +137,6 @@ func (dm *DomainManager) ReceiveSongStream(ctx context.Context, song store.Song,
 	}
 
 	return nil
-
-	// find song CID
-	// find song provider
-	// receive stream
 }
 
 func StreamMP3FromReader(reader io.Reader) {

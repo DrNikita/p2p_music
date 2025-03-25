@@ -1,4 +1,5 @@
 .vscode
 *.env
 *.mp3
+*.ogg
 .data
