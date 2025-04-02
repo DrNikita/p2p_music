@@ -9,12 +9,11 @@ type Config struct {
 	MusicPath string `envconfig:"path"`
 }
 
-func MustConfig() (Config, error) {
+func LoadConfig() (*Config, error) {
 	var cfg Config
 	err := envconfig.Process("music", &cfg)
 	if err != nil {
-		return cfg, err
+		return nil, err
 	}
-
-	return cfg, nil
+	return &cfg, nil
 }

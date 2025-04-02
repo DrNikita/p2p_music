@@ -7,7 +7,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"p2p-music/domain/store"
+	"p2p-music/config"
+	"p2p-music/internal/model"
 	"strings"
 	"time"
 
@@ -23,28 +24,36 @@ const (
 	songStreamingProtocol = "/song/stream/1.1.0"
 )
 
-type DomainManager struct {
-	h      host.Host
-	gp     *store.GlobalPlaylist
-	dht    *dht.IpfsDHT
-	logger *slog.Logger
+type SongTableManager interface {
+	AdvertiseSong(song model.Song) error
+	Search(song string) (model.Song, error)
+	RegisterSongTableHandlers(ctx context.Context, h host.Host)
 }
 
-func NewDomainManager(h host.Host, gp *store.GlobalPlaylist, dht *dht.IpfsDHT, logger *slog.Logger) *DomainManager {
+type DomainManager struct {
+	h         host.Host
+	songTable SongTableManager
+	dht       *dht.IpfsDHT
+	config    *config.Config
+	logger    *slog.Logger
+}
+
+func NewDomainManager(h host.Host, songTable SongTableManager, dht *dht.IpfsDHT, config *config.Config, logger *slog.Logger) *DomainManager {
 	return &DomainManager{
-		h:      h,
-		gp:     gp,
-		dht:    dht,
-		logger: logger,
+		h:         h,
+		songTable: songTable,
+		dht:       dht,
+		config:    config,
+		logger:    logger,
 	}
 }
 
-func (dm *DomainManager) PromoteSong(ctx context.Context, song store.Song) error {
+func (dm *DomainManager) PromoteSong(ctx context.Context, song model.Song) error {
 	if err := dm.dht.Provide(ctx, song.CID, true); err != nil {
 		return err
 	}
 
-	if err := dm.gp.AdvertiseSong(song); err != nil {
+	if err := dm.songTable.AdvertiseSong(song); err != nil {
 		return err
 	}
 
@@ -98,7 +107,7 @@ func (dm *DomainManager) streamSong(s network.Stream) {
 	}
 }
 
-func (dm *DomainManager) ReceiveSongStream(ctx context.Context, song store.Song, targetPeerID peer.ID) error {
+func (dm *DomainManager) ReceiveSongStream(ctx context.Context, song model.Song, targetPeerID peer.ID) error {
 	stream, err := dm.h.NewStream(context.Background(), targetPeerID, songStreamingProtocol)
 	if err != nil {
 		return err
@@ -111,8 +120,13 @@ func (dm *DomainManager) ReceiveSongStream(ctx context.Context, song store.Song,
 		return err
 	}
 
+	songName := songTitleParser(song.Title)
+	if songName == "" {
+
+	}
+
 	// Создаем файл для записи
-	outFile, err := os.Create(fmt.Sprintf("newfile.%s", song.Format))
+	outFile, err := os.Create(fmt.Sprintf("%s/%s", dm.config.MusicPath, song.Title))
 	if err != nil {
 		return err
 	}
@@ -170,7 +184,7 @@ func StreamMP3FromReader(reader io.Reader) {
 	}
 }
 
-func (dm *DomainManager) FindSongProviders(ctx context.Context, song store.Song) ([]peer.AddrInfo, error) {
+func (dm *DomainManager) FindSongProviders(ctx context.Context, song model.Song) ([]peer.AddrInfo, error) {
 	nonSelfProviders := make([]peer.AddrInfo, 0)
 
 	providers, err := dm.dht.FindProviders(ctx, song.CID)
@@ -185,4 +199,12 @@ func (dm *DomainManager) FindSongProviders(ctx context.Context, song store.Song)
 	}
 
 	return nonSelfProviders, nil
+}
+
+func songTitleParser(title string) string {
+	titleParts := strings.Split(title, ".")
+	if len(titleParts) == 0 {
+		return ""
+	}
+	return titleParts[len(titleParts)-1]
 }

@@ -1,4 +1,4 @@
-package store
+package model
 
 import (
 	"crypto/sha256"
@@ -31,7 +31,7 @@ func NewSong(filePath string) (Song, error) {
 	}
 	defer file.Close()
 
-	cid, err := GenerateCIDFromFile(file)
+	cid, err := GenerateSongCID(file)
 	if err != nil {
 		return Song{}, err
 	}
@@ -51,12 +51,12 @@ func NewSong(filePath string) (Song, error) {
 	}, nil
 }
 
-func GenerateCIDFromFile(file *os.File) (cid.Cid, error) {
+func GenerateSongCID(song *os.File) (cid.Cid, error) {
 	// Create a SHA-256 hasher
 	hasher := sha256.New()
 
 	// Stream the file content through the hasher
-	if _, err := io.Copy(hasher, file); err != nil {
+	if _, err := io.Copy(hasher, song); err != nil {
 		return cid.Undef, fmt.Errorf("failed to hash file: %w", err)
 	}
 

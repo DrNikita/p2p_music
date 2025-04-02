@@ -7,59 +7,15 @@ import (
 	"log/slog"
 	"os"
 	"p2p-music/config"
-	"p2p-music/discovery"
-	"p2p-music/domain"
-	"p2p-music/domain/store"
-	"time"
+	"p2p-music/internal/domain"
 
 	"github.com/multiformats/go-multiaddr"
 
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/libp2p/go-libp2p"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
-)
-
-const (
-	defaultAddr          = "/ip4/0.0.0.0/tcp/0"
-	nodeNamespace string = "music"
 )
 
 func main() {
-	// Start with the default scaling limits.
-	scalingLimits := rcmgr.DefaultLimits
-
-	// Add limits around included libp2p protocols
-	libp2p.SetDefaultServiceLimits(&scalingLimits)
-
-	// Turn the scaling limits into a concrete set of limits using `.AutoScale`. This
-	// scales the limits proportional to your system memory.
-	scaledDefaultLimits := scalingLimits.AutoScale()
-
-	// Tweak certain settings
-	cfg := rcmgr.PartialLimitConfig{
-		System: rcmgr.ResourceLimits{
-			// Allow unlimited outbound streams
-			StreamsOutbound: rcmgr.Unlimited,
-		},
-		// Everything else is default. The exact values will come from `scaledDefaultLimits` above.
-	}
-
-	// Create our limits by using our cfg and replacing the default values with values from `scaledDefaultLimits`
-	limits := cfg.Build(scaledDefaultLimits)
-
-	// The resource manager expects a limiter, se we create one from our limits.
-	limiter := rcmgr.NewFixedLimiter(limits)
-
-	// Metrics are enabled by default. If you want to disable metrics, use the
-	// WithMetricsDisabled option
-	// Initialize the resource manager
-	rm, err := rcmgr.NewResourceManager(limiter, rcmgr.WithMetricsDisabled())
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = config.MustConfig()
+	configs, err := config.LoadConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -71,19 +27,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	h, err := libp2p.New(
-		libp2p.ListenAddrStrings(defaultAddr),
-		libp2p.ResourceManager(rm),
-		libp2p.EnableAutoNATv2(),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("Node addresses:")
-	for _, addr := range h.Addrs() {
-		fmt.Printf("%s/p2p/%s\n", addr, h.ID())
-	}
+	h := domain.SetupHost()
 
 	discoveryPeers := []multiaddr.Multiaddr{}
 
@@ -97,68 +41,9 @@ func main() {
 		fmt.Println("discovery PEER:", cmdPeer)
 	}
 
-	// create a new PubSub service using the GossipSub router
-	ps, err := pubsub.NewGossipSub(ctx, h)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	kdht, err := discovery.NewDHT(ctx, h, discoveryPeers, logger)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	go discovery.Discover(ctx, h, kdht, nodeNamespace, logger)
-
-	time.Sleep(5 * time.Second)
-
-	gp, err := store.SetupGlobalPlaylist(ctx, ps, h, logger)
-	if err != nil {
-		log.Fatal(err)
-	}
-	gp.RegisterGetPlaylistHandler(ctx, h)
-
-	////////////////
-	/*
-	   TESTING
-	*/
-	///////////////
-
-	if len(discoveryPeers) == 0 {
-		select {}
-	}
-
-	song, err := store.NewSong("/Users/nikita/flow /p2p_music/.data/music/chsv.mp3")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	domainManager := domain.NewDomainManager(h, gp, kdht, logger)
-	err = domainManager.PromoteSong(ctx, song)
-	if err != nil {
-		log.Fatal(err)
-	}
-	domainManager.RegisterProtocols(ctx)
-
-	songProviders, err := domainManager.FindSongProviders(ctx, song)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if len(songProviders) != 0 {
-		err = domainManager.ReceiveSongStream(ctx, song, songProviders[len(songProviders)-1].ID)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+	domain.Run(ctx, h, discoveryPeers, configs, logger)
 
 	select {}
-
-	////////////////
-	/*
-	   TESTING
-	*/
-	///////////////
 }
 
 func getCmdPeerDiscovery() []string {

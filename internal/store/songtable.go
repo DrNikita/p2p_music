@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
+	"p2p-music/internal/model"
 	"strings"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -16,12 +17,12 @@ import (
 )
 
 const (
-	globalPlaylistTopic       = "global_playlist"
-	getGlobalPlaylistProtocol = "/playlist/get/1.0.0"
+	songTableTopic       = "song_table"
+	getSongTableProtocol = "/songtable/get/1.0.0"
 )
 
-type GlobalPlaylist struct {
-	Songs []Song
+type SongTable struct {
+	Songs []model.Song
 
 	ctx   context.Context
 	ps    *pubsub.PubSub
@@ -31,8 +32,14 @@ type GlobalPlaylist struct {
 	self peer.ID
 }
 
-func SetupGlobalPlaylist(ctx context.Context, ps *pubsub.PubSub, h host.Host, logger *slog.Logger) (*GlobalPlaylist, error) {
-	topic, err := ps.Join(globalPlaylistTopic)
+func SetupSongTable(ctx context.Context, h host.Host, logger *slog.Logger) (*SongTable, error) {
+	ps, err := pubsub.NewGossipSub(ctx, h)
+	if err != nil {
+		logger.Error("Failed to create gossipsub", "err", err)
+		return nil, err
+	}
+
+	topic, err := ps.Join(songTableTopic)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +55,7 @@ func SetupGlobalPlaylist(ctx context.Context, ps *pubsub.PubSub, h host.Host, lo
 		return nil, err
 	}
 
-	p := &GlobalPlaylist{
+	p := &SongTable{
 		ctx:   ctx,
 		ps:    ps,
 		topic: topic,
@@ -58,14 +65,15 @@ func SetupGlobalPlaylist(ctx context.Context, ps *pubsub.PubSub, h host.Host, lo
 	}
 
 	go p.streamListenerLoop()
+
 	return p, nil
 }
 
-func (p *GlobalPlaylist) RegisterGetPlaylistHandler(ctx context.Context, h host.Host) {
-	h.SetStreamHandler(getGlobalPlaylistProtocol, p.sendSongsToStream)
+func (p *SongTable) RegisterSongTableHandlers(ctx context.Context, h host.Host) {
+	h.SetStreamHandler(getSongTableProtocol, p.sendSongsToStream)
 }
 
-func (p *GlobalPlaylist) sendSongsToStream(s network.Stream) {
+func (p *SongTable) sendSongsToStream(s network.Stream) {
 	defer s.Close()
 
 	songsByte, err := json.Marshal(p.Songs)
@@ -80,13 +88,13 @@ func (p *GlobalPlaylist) sendSongsToStream(s network.Stream) {
 	}
 }
 
-func receiveSongs(ctx context.Context, h host.Host) ([]Song, error) {
-	pHolder := getPlaylistHolder(h)
+func receiveSongs(ctx context.Context, h host.Host) ([]model.Song, error) {
+	pHolder := getSongTableHolder(h)
 	if pHolder == "" {
-		return make([]Song, 0), nil
+		return make([]model.Song, 0), nil
 	}
 
-	s, err := h.NewStream(ctx, pHolder, getGlobalPlaylistProtocol)
+	s, err := h.NewStream(ctx, pHolder, getSongTableProtocol)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +105,7 @@ func receiveSongs(ctx context.Context, h host.Host) ([]Song, error) {
 		return nil, err
 	}
 
-	var songs []Song
+	var songs []model.Song
 	err = json.Unmarshal(songsBytes, &songs)
 	if err != nil {
 		return nil, err
@@ -106,7 +114,7 @@ func receiveSongs(ctx context.Context, h host.Host) ([]Song, error) {
 	return songs, nil
 }
 
-func (p *GlobalPlaylist) AdvertiseSong(song Song) error {
+func (p *SongTable) AdvertiseSong(song model.Song) error {
 	songBytes, err := json.Marshal(song)
 	if err != nil {
 		return err
@@ -117,16 +125,16 @@ func (p *GlobalPlaylist) AdvertiseSong(song Song) error {
 	return p.topic.Publish(p.ctx, songBytes)
 }
 
-func (p *GlobalPlaylist) Search(songName string) (Song, error) {
+func (p *SongTable) Search(songName string) (model.Song, error) {
 	for _, song := range p.Songs {
 		if strings.ContainsAny(song.Title, songName) {
 			return song, nil
 		}
 	}
-	return Song{}, fmt.Errorf("failed to find song for provided name %s", songName)
+	return model.Song{}, fmt.Errorf("failed to find song for provided name %s", songName)
 }
 
-func (p *GlobalPlaylist) streamListenerLoop() {
+func (p *SongTable) streamListenerLoop() {
 	for {
 		select {
 		case <-p.ctx.Done():
@@ -142,7 +150,7 @@ func (p *GlobalPlaylist) streamListenerLoop() {
 				continue
 			}
 
-			song := new(Song)
+			song := new(model.Song)
 			err = json.Unmarshal(msg.Data, song)
 			if err != nil {
 				continue
@@ -153,7 +161,7 @@ func (p *GlobalPlaylist) streamListenerLoop() {
 	}
 }
 
-func getPlaylistHolder(h host.Host) peer.ID {
+func getSongTableHolder(h host.Host) peer.ID {
 	peers := h.Network().Peers()
 	if len(peers) == 0 {
 		return ""
@@ -161,6 +169,7 @@ func getPlaylistHolder(h host.Host) peer.ID {
 	return peers[rand.IntN(len(peers))]
 }
 
-func (p *GlobalPlaylist) ListPeers() []peer.ID {
-	return p.ps.ListPeers(globalPlaylistTopic)
+//TODO: needed?
+func (p *SongTable) ListPeers() []peer.ID {
+	return p.ps.ListPeers(songTableTopic)
 }

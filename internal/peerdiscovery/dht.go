@@ -1,4 +1,4 @@
-package discovery
+package peerdiscovery
 
 import (
 	"context"
@@ -15,11 +15,19 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-const (
-	playlistTopic string = "playlist"
-)
+type DHTManager struct {
+	h   host.Host
+	log *slog.Logger
+}
 
-func NewDHT(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiaddr, logger *slog.Logger) (*dht.IpfsDHT, error) {
+func NewDHTManager(h host.Host, logger *slog.Logger) *DHTManager {
+	return &DHTManager{
+		h:   h,
+		log: logger,
+	}
+}
+
+func (m *DHTManager) NewDHT(ctx context.Context, bootstrapPeers []multiaddr.Multiaddr) (*dht.IpfsDHT, error) {
 	var opts []dht.Option
 
 	// if no bootstrap peers give this peer act as a bootstraping node
@@ -29,14 +37,14 @@ func NewDHT(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiad
 	}
 
 	//TODO: take a look on NewDHT() func
-	kdht, err := dht.New(ctx, h, opts...)
+	kdht, err := dht.New(ctx, m.h, opts...)
 	if err != nil {
-		logger.Error("Failed to create new DHT", "err", err)
+		m.log.Error("Failed to create new DHT", "err", err)
 		return nil, err
 	}
 
 	if err := kdht.Bootstrap(ctx); err != nil {
-		logger.Error("Failed to Bootstrap", "err", err)
+		m.log.Error("Failed to Bootstrap", "err", err)
 		return nil, err
 	}
 
@@ -49,19 +57,19 @@ func NewDHT(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiad
 	for _, peerAddr := range bootstrapPeers {
 		peerInfo, err := peer.AddrInfoFromP2pAddr(peerAddr)
 		if err != nil {
-			logger.Error("Error", "err", err)
+			m.log.Error("Error", "err", err)
 			return nil, err
 		}
 
 		wg.Add(1)
 		go func(pi *peer.AddrInfo) {
 			defer wg.Done()
-			if err := h.Connect(ctx, *peerInfo); err != nil {
-				logger.Error("Error while connecting to node", "PeerID", peerInfo.ID, "err", err)
+			if err := m.h.Connect(ctx, *peerInfo); err != nil {
+				m.log.Error("Error while connecting to node", "PeerID", peerInfo.ID, "err", err)
 				errChan <- err
 				return
 			}
-			logger.Info("Connection established with bootstrap node", "PeerID", peerInfo.ID)
+			m.log.Info("Connection established with bootstrap node", "PeerID", peerInfo.ID)
 			errChan <- nil
 		}(peerInfo)
 	}
@@ -82,15 +90,14 @@ func NewDHT(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiad
 	}
 }
 
-func Discover(ctx context.Context, h host.Host, kdht *dht.IpfsDHT, rendezvous string, logger *slog.Logger) {
+func (m *DHTManager) Discover(ctx context.Context, kdht *dht.IpfsDHT, rendezvous string) {
 	time.Sleep(time.Second)
 
 	routingDiscovery := drouting.NewRoutingDiscovery(kdht)
-	logger.Info("Advertising rendezvous point", "rendezvous", rendezvous)
-	if _, err := routingDiscovery.Advertise(ctx, rendezvous); err != nil {
-		logger.Error("Failed to advertise rendezvous point", "err", err)
-		return
-	}
+	// if _, err := routingDiscovery.Advertise(ctx, rendezvous); err != nil {
+	// 	m.log.Error("Failed to advertise rendezvous point", "err", err)
+	// 	return
+	// }
 
 	// Periodically find peers and connect to them
 	ticker := time.NewTicker(1 * time.Second) // Check for peers every 10 seconds
@@ -103,22 +110,22 @@ func Discover(ctx context.Context, h host.Host, kdht *dht.IpfsDHT, rendezvous st
 		case <-ticker.C:
 			peers, err := routingDiscovery.FindPeers(ctx, rendezvous)
 			if err != nil {
-				logger.Error("Failed to find peers", "err", err)
+				m.log.Error("Failed to find peers", "err", err)
 				continue
 			}
 
 			for peer := range peers {
-				if peer.ID == h.ID() {
+				if peer.ID == m.h.ID() {
 					continue // Skip self
 				}
 
-				if h.Network().Connectedness(peer.ID) != network.Connected {
-					_, err := h.Network().DialPeer(ctx, peer.ID)
+				if m.h.Network().Connectedness(peer.ID) != network.Connected {
+					_, err := m.h.Network().DialPeer(ctx, peer.ID)
 					if err != nil {
-						logger.Error("Failed to connect to peer", "PeerID", peer.ID, "err", err)
+						m.log.Error("Failed to connect to peer", "PeerID", peer.ID, "err", err)
 						continue
 					}
-					logger.Info("Connected to peer", "PeerID", peer.ID)
+					m.log.Info("Connected to peer", "PeerID", peer.ID)
 				}
 			}
 		}
