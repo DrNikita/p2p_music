@@ -41,7 +41,7 @@ func main() {
 		fmt.Println("discovery PEER:", cmdPeer)
 	}
 
-	domain.Run(ctx, h, discoveryPeers, configs, logger)
+	domain.Bootstrap(ctx, h, discoveryPeers, configs, logger)
 
 	select {}
 }

@@ -22,7 +22,7 @@ type PeerDiscoverer interface {
 	Discover(ctx context.Context, kdht *dht.IpfsDHT, rendezvous string)
 }
 
-func Run(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiaddr, configs *config.Config, logger *slog.Logger) {
+func Bootstrap(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiaddr, configs *config.Config, logger *slog.Logger) {
 	peerDiscoverer := peerdiscovery.NewDHTManager(h, logger)
 	kdht, err := peerDiscoverer.NewDHT(ctx, bootstrapPeers)
 	if err != nil {
