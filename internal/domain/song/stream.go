@@ -1,4 +1,4 @@
-package domain
+package song
 
 import (
 	"bufio"
@@ -8,11 +8,11 @@ import (
 	"log/slog"
 	"os"
 	"p2p-music/config"
-	"p2p-music/internal/model"
 	"strings"
 	"time"
 
 	"github.com/ebitengine/oto/v3"
+	"github.com/google/uuid"
 	"github.com/hajimehoshi/go-mp3"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -25,12 +25,22 @@ const (
 )
 
 type SongTableManager interface {
-	AdvertiseSong(song model.Song) error
-	Search(song string) (model.Song, error)
+	AdvertiseSong(song Song) error
+	Search(song string) (Song, error)
 	RegisterSongTableHandlers(ctx context.Context, h host.Host)
 }
 
-type DomainManager struct {
+// TODO: hide SongManager with SongStreamer interface
+type SongStreamer interface {
+	RegisterSongStreamingProtocols(ctx context.Context)
+	PromoteSong(ctx context.Context, song Song) error
+	StreamMP3FromReader(reader io.Reader)
+	FindSongProviders(ctx context.Context, song Song) ([]peer.AddrInfo, error)
+}
+
+//
+
+type SongManager struct {
 	h         host.Host
 	songTable SongTableManager
 	dht       *dht.IpfsDHT
@@ -38,8 +48,8 @@ type DomainManager struct {
 	logger    *slog.Logger
 }
 
-func NewDomainManager(h host.Host, songTable SongTableManager, dht *dht.IpfsDHT, config *config.Config, logger *slog.Logger) *DomainManager {
-	return &DomainManager{
+func NewSongManager(h host.Host, songTable SongTableManager, dht *dht.IpfsDHT, config *config.Config, logger *slog.Logger) *SongManager {
+	return &SongManager{
 		h:         h,
 		songTable: songTable,
 		dht:       dht,
@@ -48,7 +58,7 @@ func NewDomainManager(h host.Host, songTable SongTableManager, dht *dht.IpfsDHT,
 	}
 }
 
-func (dm *DomainManager) PromoteSong(ctx context.Context, song model.Song) error {
+func (dm *SongManager) PromoteSong(ctx context.Context, song Song) error {
 	if err := dm.dht.Provide(ctx, song.CID, true); err != nil {
 		return err
 	}
@@ -60,11 +70,11 @@ func (dm *DomainManager) PromoteSong(ctx context.Context, song model.Song) error
 	return nil
 }
 
-func (dm *DomainManager) RegisterProtocols(ctx context.Context) {
+func (dm *SongManager) RegisterSongStreamingProtocols(ctx context.Context) {
 	dm.h.SetStreamHandler(songStreamingProtocol, dm.streamSong)
 }
 
-func (dm *DomainManager) streamSong(s network.Stream) {
+func (dm *SongManager) streamSong(s network.Stream) {
 	defer s.Close()
 
 	reader := bufio.NewReader(s)
@@ -107,7 +117,7 @@ func (dm *DomainManager) streamSong(s network.Stream) {
 	}
 }
 
-func (dm *DomainManager) ReceiveSongStream(ctx context.Context, song model.Song, targetPeerID peer.ID) error {
+func (dm *SongManager) ReceiveSongStream(ctx context.Context, song Song, targetPeerID peer.ID) error {
 	stream, err := dm.h.NewStream(context.Background(), targetPeerID, songStreamingProtocol)
 	if err != nil {
 		return err
@@ -120,14 +130,19 @@ func (dm *DomainManager) ReceiveSongStream(ctx context.Context, song model.Song,
 		return err
 	}
 
-	songName := songTitleParser(song.Title)
+	songName := songNameWithoutFormat(song.Title)
 	if songName == "" {
-
+		songName = uuid.NewString()
 	}
 
+	path := fmt.Sprintf("%s/%s", dm.config.MusicPath, songName+".mp3")
+	fmt.Println("++++++++++++++++++++++++++++++++++++++++", songName)
+	fmt.Println("++++++++++++++++++++++++++++++++++++++++", path)
+
 	// Создаем файл для записи
-	outFile, err := os.Create(fmt.Sprintf("%s/%s", dm.config.MusicPath, song.Title))
+	outFile, err := os.Create(path)
 	if err != nil {
+		dm.logger.Error("Failed to create song file", "err", err)
 		return err
 	}
 	defer outFile.Close()
@@ -184,7 +199,7 @@ func StreamMP3FromReader(reader io.Reader) {
 	}
 }
 
-func (dm *DomainManager) FindSongProviders(ctx context.Context, song model.Song) ([]peer.AddrInfo, error) {
+func (dm *SongManager) FindSongProviders(ctx context.Context, song Song) ([]peer.AddrInfo, error) {
 	nonSelfProviders := make([]peer.AddrInfo, 0)
 
 	providers, err := dm.dht.FindProviders(ctx, song.CID)
@@ -201,10 +216,17 @@ func (dm *DomainManager) FindSongProviders(ctx context.Context, song model.Song)
 	return nonSelfProviders, nil
 }
 
-func songTitleParser(title string) string {
+func songNameWithoutFormat(title string) string {
 	titleParts := strings.Split(title, ".")
-	if len(titleParts) == 0 {
+	if len(titleParts) < 1 {
 		return ""
 	}
-	return titleParts[len(titleParts)-1]
+
+	noFormatPart := titleParts[len(titleParts)-2]
+	noFormatPartSpleted := strings.Split(noFormatPart, "/")
+	if len(noFormatPartSpleted) == 0 {
+		return ""
+	}
+
+	return noFormatPartSpleted[len(noFormatPartSpleted)-1]
 }

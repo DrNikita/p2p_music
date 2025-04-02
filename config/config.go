@@ -6,12 +6,12 @@ import (
 )
 
 type Config struct {
-	MusicPath string `envconfig:"path"`
+	MusicPath string `envconfig:"MUSIC_PATH"`
 }
 
 func LoadConfig() (*Config, error) {
 	var cfg Config
-	err := envconfig.Process("music", &cfg)
+	err := envconfig.Process("", &cfg)
 	if err != nil {
 		return nil, err
 	}

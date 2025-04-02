@@ -1,4 +1,4 @@
-package store
+package song
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
-	"p2p-music/internal/model"
 	"strings"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -22,7 +21,7 @@ const (
 )
 
 type SongTable struct {
-	Songs []model.Song
+	Songs []Song
 
 	ctx   context.Context
 	ps    *pubsub.PubSub
@@ -88,10 +87,10 @@ func (p *SongTable) sendSongsToStream(s network.Stream) {
 	}
 }
 
-func receiveSongs(ctx context.Context, h host.Host) ([]model.Song, error) {
+func receiveSongs(ctx context.Context, h host.Host) ([]Song, error) {
 	pHolder := getSongTableHolder(h)
 	if pHolder == "" {
-		return make([]model.Song, 0), nil
+		return make([]Song, 0), nil
 	}
 
 	s, err := h.NewStream(ctx, pHolder, getSongTableProtocol)
@@ -105,7 +104,7 @@ func receiveSongs(ctx context.Context, h host.Host) ([]model.Song, error) {
 		return nil, err
 	}
 
-	var songs []model.Song
+	var songs []Song
 	err = json.Unmarshal(songsBytes, &songs)
 	if err != nil {
 		return nil, err
@@ -114,7 +113,7 @@ func receiveSongs(ctx context.Context, h host.Host) ([]model.Song, error) {
 	return songs, nil
 }
 
-func (p *SongTable) AdvertiseSong(song model.Song) error {
+func (p *SongTable) AdvertiseSong(song Song) error {
 	songBytes, err := json.Marshal(song)
 	if err != nil {
 		return err
@@ -125,13 +124,13 @@ func (p *SongTable) AdvertiseSong(song model.Song) error {
 	return p.topic.Publish(p.ctx, songBytes)
 }
 
-func (p *SongTable) Search(songName string) (model.Song, error) {
+func (p *SongTable) Search(songName string) (Song, error) {
 	for _, song := range p.Songs {
 		if strings.ContainsAny(song.Title, songName) {
 			return song, nil
 		}
 	}
-	return model.Song{}, fmt.Errorf("failed to find song for provided name %s", songName)
+	return Song{}, fmt.Errorf("failed to find song for provided name %s", songName)
 }
 
 func (p *SongTable) streamListenerLoop() {
@@ -150,7 +149,7 @@ func (p *SongTable) streamListenerLoop() {
 				continue
 			}
 
-			song := new(model.Song)
+			song := new(Song)
 			err = json.Unmarshal(msg.Data, song)
 			if err != nil {
 				continue
@@ -169,7 +168,7 @@ func getSongTableHolder(h host.Host) peer.ID {
 	return peers[rand.IntN(len(peers))]
 }
 
-//TODO: needed?
+// TODO: needed?
 func (p *SongTable) ListPeers() []peer.ID {
 	return p.ps.ListPeers(songTableTopic)
 }

@@ -1,4 +1,4 @@
-package model
+package song
 
 import (
 	"crypto/sha256"
