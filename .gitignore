@@ -2,5 +2,5 @@
 *.env
 *.mp3
 *.ogg
+*.db
 .data
-.db
