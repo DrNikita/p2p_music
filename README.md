@@ -5,7 +5,13 @@ Create p2p application for listening to music
 #### Song CIDs store in Global Playlist, which peers get while connecting to the network and update through gossipsub
 
 ## Next
-#### Song files streaming research
+- FIX: func: streamSong(s network.Stream): watch TODO note
+
+#### Features completed
+- Songs catalog storage
+- Song promotion
+- Song search
+- Song streaming
 
 # Network sturtup
 - to start bootstrap node

@@ -72,6 +72,33 @@ func (p *SongTable) RegisterSongTableHandlers(ctx context.Context, h host.Host) 
 	h.SetStreamHandler(getSongTableProtocol, p.sendSongsToStream)
 }
 
+func (p *SongTable) AdvertiseSong(song Song) error {
+	songBytes, err := json.Marshal(song)
+	if err != nil {
+		return err
+	}
+
+	return p.topic.Publish(p.ctx, songBytes)
+}
+
+func (p *SongTable) Search(songName string) (Song, error) {
+	for _, song := range p.Songs {
+		if strings.ContainsAny(song.Title, songName) {
+			return song, nil
+		}
+	}
+	return Song{}, fmt.Errorf("failed to find song for provided name %s", songName)
+}
+
+func (p *SongTable) SearchWithParams(song Song) (Song, error) {
+	for _, song := range p.Songs {
+		if strings.ContainsAny(song.Title, song.Title) {
+			return song, nil
+		}
+	}
+	return Song{}, fmt.Errorf("failed to find song for provided name %s", song.Title)
+}
+
 func (p *SongTable) sendSongsToStream(s network.Stream) {
 	defer s.Close()
 
@@ -113,26 +140,6 @@ func receiveSongs(ctx context.Context, h host.Host) ([]Song, error) {
 	return songs, nil
 }
 
-func (p *SongTable) AdvertiseSong(song Song) error {
-	songBytes, err := json.Marshal(song)
-	if err != nil {
-		return err
-	}
-
-	p.Songs = append(p.Songs, song)
-
-	return p.topic.Publish(p.ctx, songBytes)
-}
-
-func (p *SongTable) Search(songName string) (Song, error) {
-	for _, song := range p.Songs {
-		if strings.ContainsAny(song.Title, songName) {
-			return song, nil
-		}
-	}
-	return Song{}, fmt.Errorf("failed to find song for provided name %s", songName)
-}
-
 func (p *SongTable) streamListenerLoop() {
 	for {
 		select {
@@ -160,6 +167,7 @@ func (p *SongTable) streamListenerLoop() {
 	}
 }
 
+// TODO: mb integrate method like iin ListPeers() func
 func getSongTableHolder(h host.Host) peer.ID {
 	peers := h.Network().Peers()
 	if len(peers) == 0 {

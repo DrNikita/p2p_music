@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"p2p-music/config"
-	"p2p-music/internal/domain"
+	"p2p-music/internal/peerdiscovery"
 
 	"github.com/multiformats/go-multiaddr"
 
@@ -27,7 +27,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	h := domain.SetupHost()
+	h := peerdiscovery.SetupHost()
 
 	discoveryPeers := []multiaddr.Multiaddr{}
 
@@ -41,7 +41,7 @@ func main() {
 		fmt.Println("discovery PEER:", cmdPeer)
 	}
 
-	domain.Bootstrap(ctx, h, discoveryPeers, configs, logger)
+	peerdiscovery.Bootstrap(ctx, h, discoveryPeers, configs, logger)
 
 	select {}
 }

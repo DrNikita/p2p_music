@@ -8,9 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 )
+
+//TODO: interface needed
 
 type Song struct {
 	Title    string
@@ -52,7 +55,6 @@ func NewSong(filePath string) (Song, error) {
 }
 
 func GenerateSongCID(song *os.File) (cid.Cid, error) {
-	// Create a SHA-256 hasher
 	hasher := sha256.New()
 
 	// Stream the file content through the hasher
@@ -66,6 +68,29 @@ func GenerateSongCID(song *os.File) (cid.Cid, error) {
 		return cid.Undef, fmt.Errorf("failed to encode multihash: %w", err)
 	}
 
-	// Create a CID using the multihash
 	return cid.NewCidV1(cid.Raw, mh), nil
+}
+
+func (s Song) SongNameWithoutFormat() string {
+	titleParts := strings.Split(s.Title, ".")
+	if len(titleParts) < 1 {
+		return uuid.NewString()
+	}
+
+	noFormatPart := titleParts[len(titleParts)-2]
+	noFormatPartSpleted := strings.Split(noFormatPart, "/")
+	if len(noFormatPartSpleted) == 0 {
+		return uuid.NewString()
+	}
+
+	return noFormatPartSpleted[len(noFormatPartSpleted)-1]
+}
+
+func (s Song) SongFormat() string {
+	titleParts := strings.Split(s.Title, ".")
+	if len(titleParts) < 1 {
+		return uuid.NewString()
+	}
+
+	return titleParts[len(titleParts)-1]
 }
