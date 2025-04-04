@@ -54,6 +54,18 @@ func NewSong(filePath string) (Song, error) {
 	}, nil
 }
 
+func NewSongFromFile(file *os.File) (Song, error) {
+	cid, err := GenerateSongCID(file)
+	if err != nil {
+		return Song{}, err
+	}
+
+	return Song{
+		Title: file.Name(),
+		CID:   cid,
+	}, nil
+}
+
 func GenerateSongCID(song *os.File) (cid.Cid, error) {
 	hasher := sha256.New()
 
@@ -68,7 +80,10 @@ func GenerateSongCID(song *os.File) (cid.Cid, error) {
 		return cid.Undef, fmt.Errorf("failed to encode multihash: %w", err)
 	}
 
-	return cid.NewCidV1(cid.Raw, mh), nil
+	cid := cid.NewCidV1(cid.Raw, mh)
+	fmt.Println("___CID_GENERATED___", cid.String())
+
+	return cid, nil
 }
 
 func (s Song) SongNameWithoutFormat() string {

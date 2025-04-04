@@ -25,19 +25,19 @@ const (
 )
 
 type Store interface {
-	SaveFilePath(ctx context.Context, CID cid.Cid, path string) error
+	SaveFilePath(context.Context, cid.Cid, string) error
 
-	FindFilePath(ctx context.Context, CID cid.Cid) (string, error)
+	FindFilePath(context.Context, cid.Cid) (string, error)
 }
 
 type SongTableManager interface {
-	AdvertiseSong(song Song) error
+	AdvertiseSong(Song) error
 
-	Search(song string) (Song, error)
+	Search(string) (Song, error)
 
-	SearchWithParams(song Song) (Song, error)
+	SearchWithParams(Song) (Song, error)
 
-	RegisterSongTableHandlers(ctx context.Context, h host.Host)
+	RegisterSongTableHandlers(context.Context, host.Host)
 }
 
 type SongManager struct {
@@ -62,15 +62,25 @@ func NewSongManager(h host.Host, songTable SongTableManager, dht *dht.IpfsDHT, s
 
 func (dm *SongManager) PromoteSong(ctx context.Context, song Song, songFilePath string) error {
 	if err := dm.store.SaveFilePath(ctx, song.CID, songFilePath); err != nil {
-		return err
+		dm.logger.Error("Failed to save song file path", "err", err)
+		return PromoteSongError{
+			errMsg: err.Error(),
+		}
 	}
+	dm.logger.Info("Successfully saved song file path", "path", songFilePath)
 
 	if err := dm.dht.Provide(ctx, song.CID, true); err != nil {
-		return err
+		dm.logger.Error("Failed to provide song", "err", err)
+		return PromoteSongError{
+			errMsg: err.Error(),
+		}
 	}
 
 	if err := dm.songTable.AdvertiseSong(song); err != nil {
-		return err
+		dm.logger.Error("Failed to advertise song", "err", err)
+		return PromoteSongError{
+			errMsg: err.Error(),
+		}
 	}
 
 	return nil
@@ -93,24 +103,24 @@ func (dm *SongManager) FindSongProviders(ctx context.Context, song Song) ([]peer
 	return nonSelfProviders, nil
 }
 
-func (dm *SongManager) ReceiveSongStream(ctx context.Context, song Song, targetPeerID peer.ID) error {
+// TODO: promote song after receving
+func (dm *SongManager) ReceiveSongStream(ctx context.Context, song Song, targetPeerID peer.ID) (string, error) {
 	stream, err := dm.h.NewStream(context.Background(), targetPeerID, songStreamingProtocol)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer stream.Close()
 
-	// File name sendng
 	_, err = stream.Write([]byte(song.Title + "\n")) // Wrire separator
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	songNewFilePath := fmt.Sprintf("%s/%s.%s", dm.config.MusicPath, song.SongNameWithoutFormat(), song.SongFormat())
 	outFile, err := os.Create(songNewFilePath)
 	if err != nil {
 		dm.logger.Error("Failed to create song file", "err", err)
-		return err
+		return "", err
 	}
 	defer outFile.Close()
 
@@ -120,47 +130,58 @@ func (dm *SongManager) ReceiveSongStream(ctx context.Context, song Song, targetP
 		if n > 0 {
 			_, writeErr := outFile.Write(buf[:n])
 			if writeErr != nil {
-				return writeErr
+				return "", writeErr
 			}
 		}
 		if err == io.EOF {
 			dm.logger.Info("Audio stream ended")
 			break
 		} else if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	return nil
+	return songNewFilePath, nil
 }
 
-// Stream handler
 func (dm *SongManager) RegisterSongStreamingProtocols(ctx context.Context) {
-	dm.h.SetStreamHandler(songStreamingProtocol, dm.streamSong)
+	dm.h.SetStreamHandler(songStreamingProtocol, func(s network.Stream) {
+		defer s.Close()
+		err := dm.streamSong(ctx, s)
+		if err != nil {
+			dm.logger.Error("Failed to stream song", "err", err)
+			// s.Reset()
+			return
+		}
+		dm.logger.Info("Song streaming success")
+	})
 }
 
-func (dm *SongManager) streamSong(s network.Stream) {
-	defer s.Close()
-
-	reader := bufio.NewReader(s)
-
+func (dm *SongManager) streamSong(ctx context.Context, s network.Stream) error {
 	// Читаем имя запрашиваемого файла
-	filename, err := reader.ReadString('\n')
+	reader := bufio.NewReader(s)
+	songTitle, err := reader.ReadString('\n')
 	if err != nil {
-		s.Reset()
 		fmt.Println("Ошибка чтения запроса:", err)
-		return
+		return err
 	}
-	filename = strings.TrimSpace(filename)
+	songTitle = strings.TrimSpace(songTitle)
 
-	fmt.Println("Передаю файл:", filename)
-
-	// TODO: fix: must not receive filename as file path => get file CID by name => get file path by CID form BoltDB
-	file, err := os.Open(filename)
+	song, err := dm.songTable.Search(songTitle)
 	if err != nil {
-		s.Reset()
-		fmt.Println("Файл не найден:", filename)
-		return
+		dm.logger.Error("Failed to find file", "song title", songTitle, "err", err)
+		return err
+	}
+
+	songPath, err := dm.store.FindFilePath(ctx, song.CID)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Open(songPath)
+	if err != nil {
+		dm.logger.Error("Failed to open file", "err", err)
+		return err
 	}
 	defer file.Close()
 
@@ -171,15 +192,17 @@ func (dm *SongManager) streamSong(s network.Stream) {
 		if n > 0 {
 			_, writeErr := s.Write(buf[:n])
 			if writeErr != nil {
-				return
+				return writeErr
 			}
 		}
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return
+			return err
 		}
 	}
+
+	return nil
 }
 
 // TODO: unused

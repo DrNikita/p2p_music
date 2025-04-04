@@ -78,6 +78,9 @@ func (p *SongTable) AdvertiseSong(song Song) error {
 		return err
 	}
 
+	//TODO: mb it duplicates songs in SongTable
+	p.Songs = append(p.Songs, song)
+
 	return p.topic.Publish(p.ctx, songBytes)
 }
 

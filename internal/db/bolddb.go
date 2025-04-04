@@ -2,16 +2,16 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
-	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
 )
 
 const (
-	dbFile     = "cid_store.db"
 	bucketName = "cid_to_path"
 )
 
@@ -20,25 +20,34 @@ type Storage struct {
 	logger *slog.Logger
 }
 
-func InitDB(logger *slog.Logger) (*Storage, error) {
-	boltDB, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
+func InitDB(logger *slog.Logger) (*Storage, func() error, error) {
+	uuid := uuid.New()
+
+	dbFile := fmt.Sprintf("cid_store_%s.db", uuid.String())
+	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer boltDB.Close()
 
-	err = boltDB.Update(func(tx *bolt.Tx) error {
+	closeDBConn := func() error {
+		if err := db.Close(); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte(bucketName))
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return nil, closeDBConn, err
 	}
 
 	return &Storage{
-		db:     boltDB,
+		db:     db,
 		logger: logger,
-	}, nil
+	}, closeDBConn, nil
 }
 
 func (s *Storage) SaveFilePath(ctx context.Context, CID cid.Cid, path string) error {
@@ -63,6 +72,8 @@ func (s *Storage) FindFilePath(ctx context.Context, CID cid.Cid) (string, error)
 
 		return nil
 	})
+
+	s.logger.Info("File path for song", "CID", CID, "value", path)
 
 	return path, err
 }

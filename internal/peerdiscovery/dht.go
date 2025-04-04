@@ -91,13 +91,13 @@ func (m *DHTManager) NewDHT(ctx context.Context, bootstrapPeers []multiaddr.Mult
 }
 
 func (m *DHTManager) Discover(ctx context.Context, kdht *dht.IpfsDHT, rendezvous string) {
-	time.Sleep(time.Second)
-
+	time.Sleep(1 * time.Second)
+	
 	routingDiscovery := drouting.NewRoutingDiscovery(kdht)
-	// if _, err := routingDiscovery.Advertise(ctx, rendezvous); err != nil {
-	// 	m.log.Error("Failed to advertise rendezvous point", "err", err)
-	// 	return
-	// }
+	if _, err := routingDiscovery.Advertise(ctx, rendezvous); err != nil {
+		m.log.Error("Failed to advertise rendezvous point", "err", err)
+		return
+	}
 
 	// Periodically find peers and connect to them
 	ticker := time.NewTicker(1 * time.Second) // Check for peers every 10 seconds

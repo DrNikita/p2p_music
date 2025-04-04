@@ -41,7 +41,8 @@ func main() {
 		fmt.Println("discovery PEER:", cmdPeer)
 	}
 
-	peerdiscovery.Bootstrap(ctx, h, discoveryPeers, configs, logger)
+	closeDB := peerdiscovery.Bootstrap(ctx, h, discoveryPeers, configs, logger)
+	defer closeDB()
 
 	select {}
 }

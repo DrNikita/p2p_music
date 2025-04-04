@@ -6,7 +6,6 @@ import (
 	"p2p-music/internal/song"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-	// tea "github.com/charmbracelet/bubbletea"
 )
 
 type SongManagerInterface interface {
@@ -19,16 +18,16 @@ type SongManagerInterface interface {
 	FindSongProviders(ctx context.Context, song song.Song) ([]peer.AddrInfo, error)
 }
 
-type PeerInteractor struct {
+type DomainService struct {
 	songManager SongManagerInterface
 	logger      *slog.Logger
 }
 
-func NewUI(songManager SongManagerInterface, logger *slog.Logger) *PeerInteractor {
-	return &PeerInteractor{
+func NewUI(songManager SongManagerInterface, logger *slog.Logger) *DomainService {
+	return &DomainService{
 		songManager: songManager,
 		logger:      logger,
 	}
 }
 
-func (ui *PeerInteractor) F() {}
+func (ui *DomainService) F() {}
