@@ -50,40 +50,5 @@ func Bootstrap(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Mult
 	songTableManager := song.NewSongManager(h, songTable, kdht, store, configs, logger)
 	songTableManager.RegisterSongStreamingProtocols(ctx)
 
-	////////////////////
-	//.....TESTING......
-	if len(bootstrapPeers) == 0 {
-		return closeDBConn
-	}
-
-	songFilePath := "/home/nikita/workspace/p2p_music/.data/test/Bruno.mp3"
-	song, err := song.NewSong(songFilePath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = songTableManager.PromoteSong(ctx, song, songFilePath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	songProviders, err := songTableManager.FindSongProviders(ctx, song)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if len(songProviders) > 0 {
-		receivedSongFilePath, err := songTableManager.ReceiveSongStream(ctx, song, songProviders[len(songProviders)-1].ID)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if err := songTableManager.PromoteSong(ctx, song, receivedSongFilePath); err != nil {
-			log.Fatal(err)
-		}
-	}
-	// //////////////////
-	// .....TESTING......
-
 	return closeDBConn
 }
