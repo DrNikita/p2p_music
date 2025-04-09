@@ -8,7 +8,7 @@ import (
 	"os"
 	"p2p-music/config"
 	"p2p-music/internal/peerdiscovery"
-	tui "p2p-music/internal/tui/model"
+	tui "p2p-music/tui/model"
 	"time"
 
 	"github.com/multiformats/go-multiaddr"
