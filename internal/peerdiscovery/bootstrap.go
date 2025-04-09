@@ -53,7 +53,7 @@ func Bootstrap(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Mult
 	////////////////////
 	//.....TESTING......
 	if len(bootstrapPeers) == 0 {
-		select {}
+		return closeDBConn
 	}
 
 	songFilePath := "/home/nikita/workspace/p2p_music/.data/test/Bruno.mp3"

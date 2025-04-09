@@ -8,9 +8,12 @@ import (
 	"os"
 	"p2p-music/config"
 	"p2p-music/internal/peerdiscovery"
+	tui "p2p-music/internal/tui/model"
+	"time"
 
 	"github.com/multiformats/go-multiaddr"
 
+	tea "github.com/charmbracelet/bubbletea"
 	_ "github.com/joho/godotenv/autoload"
 )
 
@@ -44,7 +47,13 @@ func main() {
 	closeDB := peerdiscovery.Bootstrap(ctx, h, discoveryPeers, configs, logger)
 	defer closeDB()
 
-	select {}
+	time.Sleep(time.Second)
+
+	p := tea.NewProgram(tui.InitTea())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v", err)
+		os.Exit(1)
+	}
 }
 
 func getCmdPeerDiscovery() []string {
