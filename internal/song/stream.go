@@ -32,12 +32,6 @@ type Store interface {
 
 type SongTableManager interface {
 	AdvertiseSong(Song) error
-
-	Search(string) (Song, error)
-
-	SearchWithParams(Song) (Song, error)
-
-	RegisterSongTableHandlers(context.Context, host.Host)
 }
 
 type SongManager struct {
@@ -167,13 +161,13 @@ func (dm *SongManager) streamSong(ctx context.Context, s network.Stream) error {
 	}
 	songTitle = strings.TrimSpace(songTitle)
 
-	song, err := dm.songTable.Search(songTitle)
-	if err != nil {
-		dm.logger.Error("Failed to find file", "song title", songTitle, "err", err)
-		return err
-	}
+	// song, err := dm.songTable.Search(songTitle)
+	// if err != nil {
+	// 	dm.logger.Error("Failed to find file", "song title", songTitle, "err", err)
+	// 	return err
+	// }
 
-	songPath, err := dm.store.FindFilePath(ctx, song.CID)
+	songPath, err := dm.store.FindFilePath(ctx, cid.Cid{})
 	if err != nil {
 		return err
 	}

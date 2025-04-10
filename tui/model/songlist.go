@@ -2,15 +2,21 @@ package model
 
 import (
 	"fmt"
-	"p2p-music/internal/song"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type SongList struct {
-	sngs     []song.Song
+	songs    []string
 	cursor   int
 	selected map[int]struct{}
+}
+
+func InitSongList() SongList {
+	return SongList{
+		songs:    make([]string, 0),
+		selected: make(map[int]struct{}),
+	}
 }
 
 func (sl SongList) Init() tea.Cmd {
@@ -38,7 +44,7 @@ func (sl SongList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// The "down" and "j" keys move the cursor down
 		case "down", "j":
-			if sl.cursor < len(sl.sngs)-1 {
+			if sl.cursor < len(sl.songs)-1 {
 				sl.cursor++
 			}
 
@@ -64,7 +70,7 @@ func (sl SongList) View() string {
 	s := "What should we buy at the market?\n\n"
 
 	// Iterate over our choices
-	for i, choice := range sl.sngs {
+	for i, choice := range sl.songs {
 
 		// Is the cursor pointing at this choice?
 		cursor := " " // no cursor
