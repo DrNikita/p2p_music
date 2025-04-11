@@ -6,7 +6,8 @@ import (
 )
 
 type Config struct {
-	MusicPath string `envconfig:"MUSIC_PATH"`
+	MusicPath    string `envconfig:"MUSIC_PATH"`
+	TestFilePath string `envconfig:"TEST_FILE_PATH"`
 }
 
 func LoadConfig() (*Config, error) {

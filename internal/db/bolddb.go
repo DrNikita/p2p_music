@@ -2,10 +2,12 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
 	"p2p-music/internal/song"
+	"strings"
 
 	"github.com/boltdb/bolt"
 	"github.com/google/uuid"
@@ -51,7 +53,7 @@ func InitDB(logger *slog.Logger) (*Storage, func() error, error) {
 	// Bucket for songs
 	err = db.Update(func(tx *bolt.Tx) error {
 		if err := tx.DeleteBucket([]byte(songsBucket)); err != nil {
-			return err
+			logger.Error("Failed to delete bucket", "bucket", songsBucket, "err", err)
 		}
 
 		_, err := tx.CreateBucketIfNotExists([]byte(songsBucket))
@@ -67,32 +69,137 @@ func InitDB(logger *slog.Logger) (*Storage, func() error, error) {
 	}, closeDBConn, nil
 }
 
-/*
-	type SongTableManager interface {
-		GetSongsList(ctx context.Context) ([]song.Song, error)
+func (s *Storage) AddSong(ctx context.Context, song song.Song) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(songsBucket))
 
-		FindSong(ctx context.Context) (song.Song, error)
+		songBytes, err := json.Marshal(song)
+		if err != nil {
+			return err
+		}
 
-		FindSongWithParams(ctx context.Context) (song.Song, error)
+		return b.Put([]byte(song.Title), songBytes)
+	})
+}
 
-		AddSong(ctx context.Context, song song.Song) error
-	}
-*/
+func (s *Storage) CreateSongsList(ctx context.Context, songs []song.Song) error {
+	return s.db.Batch(func(tx *bolt.Tx) error {
+		for _, song := range songs {
+			b := tx.Bucket([]byte(songsBucket))
+
+			songBytes, err := json.Marshal(song)
+			if err != nil {
+				return err
+			}
+
+			if err := b.Put([]byte(song.Title), songBytes); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
 
 func (s *Storage) GetSongsList(ctx context.Context) ([]song.Song, error) {
+	var songs []song.Song
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(songsBucket))
+
+		return b.ForEach(func(k, v []byte) error {
+			var song song.Song
+			if err := json.Unmarshal(v, &song); err != nil {
+				return err
+			}
+
+			songs = append(songs, song)
+			return nil
+		})
+	})
+
+	s.logger.Info("The amount of songs in the bucket", "number", len(songs))
+
+	return songs, err
+}
+
+func (s *Storage) FindSongByTitle(ctx context.Context, title string) (song.Song, error) {
+	var song song.Song
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(songsBucket))
+
+		return b.ForEach(func(k, v []byte) error {
+			if string(k) == title {
+				if err := json.Unmarshal(v, &song); err != nil {
+					s.logger.Error("Failed to unmarshal found song", "err", err)
+				}
+			}
+
+			return nil
+		})
+	})
+
+	// s.logger.Info("The amount of songs for title", "title", title, "amount", len(songs))
+
+	return song, err
+}
+
+func (s *Storage) FindSongByCID(ctx context.Context, cid cid.Cid) (song.Song, error) {
+	var sng song.Song
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(songsBucket))
+
+		return b.ForEach(func(k, v []byte) error {
+			var vSong song.Song
+			if err := json.Unmarshal(v, &vSong); err != nil {
+				s.logger.Error("Failed to unmarshal found song", "err", err)
+				return nil
+			}
+
+			if vSong.CID.Equals(cid) {
+				sng = vSong
+			}
+
+			return nil
+		})
+	})
+
+	if (sng == song.Song{}) {
+		return song.Song{}, fmt.Errorf("couldn't find song by CID: %s", cid.String())
+	}
+
+	return sng, err
+}
+
+// TODO: think about cuncurrent search :: search data by uploading batches of songs in-memory
+func (s *Storage) FindSongsByTitle(ctx context.Context, title string) ([]song.Song, error) {
+	var songs []song.Song
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(songsBucket))
+
+		return b.ForEach(func(k, v []byte) error {
+			if strings.ContainsAny(string(k), title) {
+				var song song.Song
+				if err := json.Unmarshal(v, &song); err != nil {
+					s.logger.Error("Failed to unmarshal found song", "err", err)
+				}
+				songs = append(songs, song)
+			}
+
+			return nil
+		})
+	})
+
+	s.logger.Info("The amount of songs for title", "title", title, "amount", len(songs))
+
+	return songs, err
+}
+
+// TODO: implement:)
+func (s *Storage) FindSongsWithParams(context.Context, song.Song) ([]song.Song, error) {
 	return nil, nil
-}
-func (s *Storage) FindSong(ctx context.Context) (song.Song, error) {
-	return song.Song{}, nil
-}
-func (s *Storage) FindSongWithParams(ctx context.Context) (song.Song, error) {
-	return song.Song{}, nil
-}
-func (s *Storage) AddSong(ctx context.Context, song song.Song) error {
-	return nil
-}
-func (s *Storage) CreateSongList(ctx context.Context, songs []song.Song) error {
-	return nil
 }
 
 func (s *Storage) SaveFilePath(ctx context.Context, CID cid.Cid, path string) error {

@@ -12,10 +12,10 @@ type Tea struct {
 	cursor   int
 	selected map[int]struct{}
 
-	songTableManager song.SongTableManager
+	songTableManager song.SongTableSynchronizer
 }
 
-func InitTea(songTableManager song.SongTableManager) Tea {
+func InitTea(songTableManager song.SongTableSynchronizer) Tea {
 	return Tea{
 		choices:  StartMenueChoice,
 		selected: make(map[int]struct{}),

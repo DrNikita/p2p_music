@@ -7,22 +7,27 @@ import (
 	"log/slog"
 	"math/rand/v2"
 
+	"github.com/ipfs/go-cid"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-type SongTableDB interface {
+type SongTableStore interface {
 	GetSongsList(context.Context) ([]Song, error)
 
-	FindSong(context.Context) (Song, error)
+	FindSongsByTitle(context.Context, string) ([]Song, error)
 
-	FindSongWithParams(context.Context) (Song, error)
+	FindSongByTitle(ctx context.Context, title string) (Song, error)
+
+	FindSongByCID(ctx context.Context, cid cid.Cid) (Song, error)
+
+	FindSongsWithParams(context.Context, Song) ([]Song, error)
 
 	AddSong(context.Context, Song) error
 
-	CreateSongList(context.Context, []Song) error
+	CreateSongsList(context.Context, []Song) error
 }
 
 const (
@@ -30,19 +35,18 @@ const (
 	getSongTableProtocol = "/songtable/get/1.0.0"
 )
 
-type SongTable struct {
-	ctx   context.Context
-	ps    *pubsub.PubSub
-	topic *pubsub.Topic
-	sub   *pubsub.Subscription
-	self  peer.ID
-
-	songTableDB SongTableDB
-
+type SongTableSync struct {
+	ctx    context.Context
+	ps     *pubsub.PubSub
+	topic  *pubsub.Topic
+	sub    *pubsub.Subscription
+	self   peer.ID
 	logger *slog.Logger
+
+	songTableStore SongTableStore
 }
 
-func SetupSongTable(ctx context.Context, h host.Host, songTableDB SongTableDB, logger *slog.Logger) (*SongTable, error) {
+func SetupSongTableSync(ctx context.Context, h host.Host, songTableDB SongTableStore, logger *slog.Logger) (*SongTableSync, error) {
 	ps, err := pubsub.NewGossipSub(ctx, h)
 	if err != nil {
 		logger.Error("Failed to create gossipsub", "err", err)
@@ -65,11 +69,11 @@ func SetupSongTable(ctx context.Context, h host.Host, songTableDB SongTableDB, l
 		return nil, err
 	}
 
-	if err := songTableDB.CreateSongList(ctx, songs); err != nil {
+	if err := songTableDB.CreateSongsList(ctx, songs); err != nil {
 		return nil, err
 	}
 
-	p := &SongTable{
+	p := &SongTableSync{
 		ctx:   ctx,
 		ps:    ps,
 		topic: topic,
@@ -82,9 +86,11 @@ func SetupSongTable(ctx context.Context, h host.Host, songTableDB SongTableDB, l
 	songsChan := p.streamListenerLoop()
 	go func() {
 		for {
-			song := <-songsChan
-			if err := songTableDB.AddSong(ctx, *song); err != nil {
-				logger.Error("Failed to add song to BoltDB", "err", err)
+			select {
+			case song := <-songsChan:
+				if err := songTableDB.AddSong(ctx, *song); err != nil {
+					logger.Error("Failed to add song to BoltDB", "err", err)
+				}
 			}
 		}
 	}()
@@ -92,30 +98,30 @@ func SetupSongTable(ctx context.Context, h host.Host, songTableDB SongTableDB, l
 	return p, nil
 }
 
-func (p *SongTable) RegisterSongTableHandlers(ctx context.Context, h host.Host) {
-	h.SetStreamHandler(getSongTableProtocol, p.sendSongsToStream)
+func (ts *SongTableSync) RegisterSongTableHandlers(ctx context.Context, h host.Host) {
+	h.SetStreamHandler(getSongTableProtocol, ts.sendSongsToStream)
 }
 
-func (p *SongTable) AdvertiseSong(song Song) error {
+func (ts *SongTableSync) AdvertiseSong(song Song) error {
 	songBytes, err := json.Marshal(song)
 	if err != nil {
 		return err
 	}
 
 	//TODO: mb it duplicates songs in SongTable
-	if err := p.songTableDB.AddSong(p.ctx, song); err != nil {
+	if err := ts.songTableStore.AddSong(ts.ctx, song); err != nil {
 		return err
 	}
 
-	return p.topic.Publish(p.ctx, songBytes)
+	return ts.topic.Publish(ts.ctx, songBytes)
 }
 
-func (p *SongTable) sendSongsToStream(s network.Stream) {
+func (ts *SongTableSync) sendSongsToStream(s network.Stream) {
 	defer s.Close()
 
-	songs, err := p.songTableDB.GetSongsList(p.ctx)
+	songs, err := ts.songTableStore.GetSongsList(ts.ctx)
 	if err != nil {
-		p.logger.Error("Failed to get songs from BoltDB", "err", err)
+		ts.logger.Error("Failed to get songs from BoltDB", "err", err)
 		return
 	}
 
@@ -127,7 +133,7 @@ func (p *SongTable) sendSongsToStream(s network.Stream) {
 
 	_, err = s.Write(songsByte)
 	if err != nil {
-		p.logger.Error("Failed to write song bytes to stream", "err", err)
+		ts.logger.Error("Failed to write song bytes to stream", "err", err)
 	}
 }
 
@@ -157,23 +163,23 @@ func receiveSongs(ctx context.Context, h host.Host) ([]Song, error) {
 	return songs, nil
 }
 
-func (p *SongTable) streamListenerLoop() <-chan *Song {
+func (ts *SongTableSync) streamListenerLoop() <-chan *Song {
 	songsChan := make(chan *Song)
 
 	go func() {
 		defer close(songsChan)
 		for {
 			select {
-			case <-p.ctx.Done():
+			case <-ts.ctx.Done():
 				return
 			default:
-				msg, err := p.sub.Next(p.ctx)
+				msg, err := ts.sub.Next(ts.ctx)
 				if err != nil {
 					return
 				}
 
 				// only forward messages delivered by others
-				if msg.ReceivedFrom == p.self {
+				if msg.ReceivedFrom == ts.self {
 					continue
 				}
 
@@ -201,6 +207,6 @@ func getSongTableHolder(h host.Host) peer.ID {
 }
 
 // TODO: needed?
-func (p *SongTable) ListPeers() []peer.ID {
-	return p.ps.ListPeers(songTableTopic)
+func (ts *SongTableSync) ListPeers() []peer.ID {
+	return ts.ps.ListPeers(songTableTopic)
 }

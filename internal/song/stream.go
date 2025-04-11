@@ -24,38 +24,56 @@ const (
 	songStreamingProtocol = "/song/stream/1.1.0"
 )
 
-type Store interface {
+type FilePathsStore interface {
 	SaveFilePath(context.Context, cid.Cid, string) error
 
 	FindFilePath(context.Context, cid.Cid) (string, error)
 }
 
-type SongTableManager interface {
+type SongTableSynchronizer interface {
 	AdvertiseSong(Song) error
 }
 
 type SongManager struct {
-	h         host.Host
-	songTable SongTableManager
-	dht       *dht.IpfsDHT
-	store     Store
-	config    *config.Config
-	logger    *slog.Logger
+	songTableSync  SongTableSynchronizer
+	songTableStore SongTableStore
+	filePathsStore FilePathsStore
+	h              host.Host
+	dht            *dht.IpfsDHT
+	config         *config.Config
+	logger         *slog.Logger
 }
 
-func NewSongManager(h host.Host, songTable SongTableManager, dht *dht.IpfsDHT, store Store, config *config.Config, logger *slog.Logger) *SongManager {
+func NewSongManager(
+
+	h host.Host,
+
+	songTableSync SongTableSynchronizer,
+
+	dht *dht.IpfsDHT,
+
+	songTableStore SongTableStore,
+
+	store FilePathsStore,
+
+	config *config.Config,
+
+	logger *slog.Logger,
+
+) *SongManager {
 	return &SongManager{
-		h:         h,
-		songTable: songTable,
-		dht:       dht,
-		store:     store,
-		config:    config,
-		logger:    logger,
+		h:              h,
+		songTableSync:  songTableSync,
+		dht:            dht,
+		songTableStore: songTableStore,
+		filePathsStore: store,
+		config:         config,
+		logger:         logger,
 	}
 }
 
 func (dm *SongManager) PromoteSong(ctx context.Context, song Song, songFilePath string) error {
-	if err := dm.store.SaveFilePath(ctx, song.CID, songFilePath); err != nil {
+	if err := dm.filePathsStore.SaveFilePath(ctx, song.CID, songFilePath); err != nil {
 		dm.logger.Error("Failed to save song file path", "err", err)
 		return PromoteSongError{
 			errMsg: err.Error(),
@@ -70,7 +88,7 @@ func (dm *SongManager) PromoteSong(ctx context.Context, song Song, songFilePath 
 		}
 	}
 
-	if err := dm.songTable.AdvertiseSong(song); err != nil {
+	if err := dm.songTableSync.AdvertiseSong(song); err != nil {
 		dm.logger.Error("Failed to advertise song", "err", err)
 		return PromoteSongError{
 			errMsg: err.Error(),
@@ -161,13 +179,13 @@ func (dm *SongManager) streamSong(ctx context.Context, s network.Stream) error {
 	}
 	songTitle = strings.TrimSpace(songTitle)
 
-	// song, err := dm.songTable.Search(songTitle)
-	// if err != nil {
-	// 	dm.logger.Error("Failed to find file", "song title", songTitle, "err", err)
-	// 	return err
-	// }
+	song, err := dm.songTableStore.FindSongByTitle(ctx, songTitle)
+	if err != nil {
+		dm.logger.Error("Failed to find file", "song title", songTitle, "err", err)
+		return err
+	}
 
-	songPath, err := dm.store.FindFilePath(ctx, cid.Cid{})
+	songPath, err := dm.filePathsStore.FindFilePath(ctx, song.CID)
 	if err != nil {
 		return err
 	}

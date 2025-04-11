@@ -23,7 +23,19 @@ type PeerDiscoverer interface {
 	Discover(ctx context.Context, kdht *dht.IpfsDHT, rendezvous string)
 }
 
-func Bootstrap(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Multiaddr, configs *config.Config, logger *slog.Logger) (func() error, song.SongTableManager) {
+func Bootstrap(
+
+	ctx context.Context,
+
+	h host.Host,
+
+	bootstrapPeers []multiaddr.Multiaddr,
+
+	configs *config.Config,
+
+	logger *slog.Logger,
+
+) (func() error, song.SongTableSynchronizer) {
 	// Peer discovery
 	peerDiscoverer := NewDHTManager(h, logger)
 	kdht, err := peerDiscoverer.NewDHT(ctx, bootstrapPeers)
@@ -41,14 +53,14 @@ func Bootstrap(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Mult
 	}
 
 	// Global song list initialization
-	songTable, err := song.SetupSongTable(ctx, h, store, logger)
+	songTable, err := song.SetupSongTableSync(ctx, h, store, logger)
 	if err != nil {
 		logger.Error("Setup global palylist error", "err", err)
 		log.Fatal(err)
 	}
 	songTable.RegisterSongTableHandlers(ctx, h)
 
-	songTableManager := song.NewSongManager(h, songTable, kdht, store, configs, logger)
+	songTableManager := song.NewSongManager(h, songTable, kdht, store, store, configs, logger)
 	songTableManager.RegisterSongStreamingProtocols(ctx)
 
 	////////////////////
@@ -57,13 +69,12 @@ func Bootstrap(ctx context.Context, h host.Host, bootstrapPeers []multiaddr.Mult
 		return closeDBConn, songTable
 	}
 
-	songFilePath := "/Users/nikita/flow /p2p_music/.data/test/chsv.mp3"
-	song, err := song.NewSong(songFilePath)
+	song, err := song.NewSong(configs.TestFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = songTableManager.PromoteSong(ctx, song, songFilePath)
+	err = songTableManager.PromoteSong(ctx, song, configs.TestFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}
