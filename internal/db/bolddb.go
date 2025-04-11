@@ -27,7 +27,7 @@ type Storage struct {
 func InitDB(logger *slog.Logger) (*Storage, func() error, error) {
 	uuid := uuid.New()
 
-	//TODO: const db name
+	//TODO: const db name; It's tmp desicion for testing multiple app instances
 	dbFile := fmt.Sprintf("cid_store_%s.db", uuid.String())
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
@@ -52,9 +52,7 @@ func InitDB(logger *slog.Logger) (*Storage, func() error, error) {
 
 	// Bucket for songs
 	err = db.Update(func(tx *bolt.Tx) error {
-		if err := tx.DeleteBucket([]byte(songsBucket)); err != nil {
-			logger.Error("Failed to delete bucket", "bucket", songsBucket, "err", err)
-		}
+		tx.DeleteBucket([]byte(songsBucket))
 
 		_, err := tx.CreateBucketIfNotExists([]byte(songsBucket))
 		return err
@@ -89,10 +87,12 @@ func (s *Storage) CreateSongsList(ctx context.Context, songs []song.Song) error 
 
 			songBytes, err := json.Marshal(song)
 			if err != nil {
+				s.logger.Error("Failed to marshal song", "err", err)
 				return err
 			}
 
 			if err := b.Put([]byte(song.Title), songBytes); err != nil {
+				s.logger.Error("Failed to put song", "err", err)
 				return err
 			}
 		}

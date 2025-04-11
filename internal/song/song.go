@@ -80,10 +80,7 @@ func GenerateSongCID(song *os.File) (cid.Cid, error) {
 		return cid.Undef, fmt.Errorf("failed to encode multihash: %w", err)
 	}
 
-	cid := cid.NewCidV1(cid.Raw, mh)
-	fmt.Println("___CID_GENERATED___", cid.String())
-
-	return cid, nil
+	return cid.NewCidV1(cid.Raw, mh), nil
 }
 
 func (s Song) SongNameWithoutFormat() string {

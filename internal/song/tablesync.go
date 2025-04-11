@@ -46,7 +46,7 @@ type SongTableSync struct {
 	songTableStore SongTableStore
 }
 
-func SetupSongTableSync(ctx context.Context, h host.Host, songTableDB SongTableStore, logger *slog.Logger) (*SongTableSync, error) {
+func SetupSongTableSync(ctx context.Context, h host.Host, songTableStore SongTableStore, logger *slog.Logger) (*SongTableSync, error) {
 	ps, err := pubsub.NewGossipSub(ctx, h)
 	if err != nil {
 		logger.Error("Failed to create gossipsub", "err", err)
@@ -55,40 +55,49 @@ func SetupSongTableSync(ctx context.Context, h host.Host, songTableDB SongTableS
 
 	topic, err := ps.Join(songTableTopic)
 	if err != nil {
+		logger.Error("Gossip sub join failure", "topic name", songTableStore, "err", err)
 		return nil, err
 	}
 
 	sub, err := topic.Subscribe()
 	if err != nil {
+		logger.Error("Subscription failure", "topic name", songTableStore, "err", err)
 		return nil, err
 	}
 
 	//TODO: implement re-reveiving songs
-	songs, err := receiveSongs(ctx, h)
+	songs, err := receiveSongs(ctx, h, logger)
 	if err != nil {
+		logger.Error("Failed to receive songs", "err", err)
 		return nil, err
 	}
 
-	if err := songTableDB.CreateSongsList(ctx, songs); err != nil {
+	logger.Info("Received songs", "songs count", len(songs))
+
+	if err := songTableStore.CreateSongsList(ctx, songs); err != nil {
 		return nil, err
 	}
 
 	p := &SongTableSync{
-		ctx:   ctx,
-		ps:    ps,
-		topic: topic,
-		sub:   sub,
-		self:  h.ID(),
-
+		ctx:    ctx,
+		ps:     ps,
+		topic:  topic,
+		sub:    sub,
+		self:   h.ID(),
 		logger: logger,
+
+		songTableStore: songTableStore,
 	}
 
 	songsChan := p.streamListenerLoop()
 	go func() {
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case song := <-songsChan:
-				if err := songTableDB.AddSong(ctx, *song); err != nil {
+				logger.Info("New song received", "song title", song.Title)
+				if err := songTableStore.AddSong(ctx, *song); err != nil {
 					logger.Error("Failed to add song to BoltDB", "err", err)
 				}
 			}
@@ -124,6 +133,10 @@ func (ts *SongTableSync) sendSongsToStream(s network.Stream) {
 		ts.logger.Error("Failed to get songs from BoltDB", "err", err)
 		return
 	}
+	if songs == nil {
+		ts.logger.Info("Epmty songs list")
+		return
+	}
 
 	songsByte, err := json.Marshal(songs)
 	if err != nil {
@@ -137,7 +150,7 @@ func (ts *SongTableSync) sendSongsToStream(s network.Stream) {
 	}
 }
 
-func receiveSongs(ctx context.Context, h host.Host) ([]Song, error) {
+func receiveSongs(ctx context.Context, h host.Host, logger *slog.Logger) ([]Song, error) {
 	pHolder := getSongTableHolder(h)
 	if pHolder == "" {
 		return make([]Song, 0), nil
@@ -145,18 +158,25 @@ func receiveSongs(ctx context.Context, h host.Host) ([]Song, error) {
 
 	s, err := h.NewStream(ctx, pHolder, getSongTableProtocol)
 	if err != nil {
+		logger.Error("Failed to create new stream", "err", err)
 		return nil, err
 	}
 	defer s.Close()
 
 	songsBytes, err := io.ReadAll(s)
 	if err != nil {
+		logger.Error("Failed to read from stream", "err", err)
 		return nil, err
+	}
+	if len(songsBytes) == 0 {
+		logger.Info("Empty songs bytes received")
+		return nil, nil
 	}
 
 	var songs []Song
 	err = json.Unmarshal(songsBytes, &songs)
 	if err != nil {
+		logger.Error("Failed to unmarshal songs", "err", err)
 		return nil, err
 	}
 
