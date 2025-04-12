@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"p2p-music/internal/song"
 	"testing"
@@ -104,9 +105,9 @@ func TestAddSong(t *testing.T) {
 				if err := db.AddSong(ctx, song); err != nil {
 					return err
 				}
-				return nil
+				return errors.New("anything")
 			},
-			wantErr: nil,
+			wantErr: errors.New("anything"),
 		},
 	}
 
@@ -117,6 +118,10 @@ func TestAddSong(t *testing.T) {
 
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.testFunc(tc.song)
+			if tc.wantErr != nil {
+				require.EqualError(t, err, tc.wantErr.Error())
+				return
+			}
 			require.NoError(t, err)
 		})
 	}
