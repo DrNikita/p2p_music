@@ -2,6 +2,7 @@ package peerdiscovery
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
 	"p2p-music/config"
@@ -66,7 +67,7 @@ func Bootstrap(
 	////////////////////
 	//.....TESTING......
 	if len(bootstrapPeers) == 0 {
-		return closeDBConn, songTable
+		select {}
 	}
 
 	song, err := song.NewSong(configs.TestFilePath)
@@ -90,9 +91,11 @@ func Bootstrap(
 			log.Fatal(err)
 		}
 
-		if err := songTableManager.PromoteSong(ctx, song, receivedSongFilePath); err != nil {
-			log.Fatal(err)
-		}
+		fmt.Println("_____________________________", receivedSongFilePath)
+
+		// if err := songTableManager.PromoteSong(ctx, song, receivedSongFilePath); err != nil {
+		// 	log.Fatal(err)
+		// }
 	}
 	// //////////////////
 	// .....TESTING......

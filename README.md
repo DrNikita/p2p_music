@@ -8,6 +8,9 @@ Create p2p application for listening to music
 - TODO: GlobalPlaylist --[move to]--> BoltDB
 - FIX: func: : watch TODO note
 
+## Notes:
+- PubSub: should w8 after gossibsub setup
+
 #### Features completed
 - Songs catalog storage
 - Song promotion

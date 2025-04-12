@@ -63,12 +63,13 @@ func NewSongManager(
 ) *SongManager {
 	return &SongManager{
 		h:              h,
-		songTableSync:  songTableSync,
 		dht:            dht,
-		songTableStore: songTableStore,
 		filePathsStore: store,
 		config:         config,
 		logger:         logger,
+
+		songTableSync:  songTableSync,
+		songTableStore: songTableStore,
 	}
 }
 

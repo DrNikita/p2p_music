@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -65,6 +66,22 @@ func SetupSongTableSync(ctx context.Context, h host.Host, songTableStore SongTab
 		return nil, err
 	}
 
+	// ticker := time.NewTicker(time.Millisecond * 100)
+	// defer ticker.Stop()
+	// var peers []peer.ID
+
+	// for len(peers) == 0 {
+	// 	select {
+	// 	case <-ctx.Done():
+	// 		return nil, fmt.Errorf("timed out waiting for peers in topic")
+	// 	case <-ticker.C:
+	// 		peers = append(peers, topic.ListPeers()...)
+	// 	}
+	// }
+
+	//TODO: think about how to get rid of Sleep func
+	time.Sleep(time.Second)
+
 	//TODO: implement re-reveiving songs
 	songs, err := receiveSongs(ctx, h, logger)
 	if err != nil {
@@ -72,7 +89,7 @@ func SetupSongTableSync(ctx context.Context, h host.Host, songTableStore SongTab
 		return nil, err
 	}
 
-	logger.Info("Received songs", "songs count", len(songs))
+	logger.Info("Received songs", "=======songs_count========", len(songs))
 
 	if err := songTableStore.CreateSongsList(ctx, songs); err != nil {
 		return nil, err
@@ -170,6 +187,7 @@ func receiveSongs(ctx context.Context, h host.Host, logger *slog.Logger) ([]Song
 	}
 	if len(songsBytes) == 0 {
 		logger.Info("Empty songs bytes received")
+		// TODO: return err
 		return nil, nil
 	}
 

@@ -67,6 +67,10 @@ func (s *Storage) AddSong(ctx context.Context, song song.Song) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(songsBucket))
 
+		if existing := b.Get([]byte(song.Title)); existing != nil {
+			return errDuplicateKey
+		}
+
 		songBytes, err := json.Marshal(song)
 		if err != nil {
 			return err
@@ -80,6 +84,11 @@ func (s *Storage) CreateSongsList(ctx context.Context, songs []song.Song) error 
 	return s.db.Batch(func(tx *bolt.Tx) error {
 		for _, song := range songs {
 			b := tx.Bucket([]byte(songsBucket))
+
+			if existing := b.Get([]byte(song.Title)); existing != nil {
+				s.logger.Warn("Song already exists", "title", song.Title)
+				continue
+			}
 
 			songBytes, err := json.Marshal(song)
 			if err != nil {
@@ -119,14 +128,14 @@ func (s *Storage) GetSongsList(ctx context.Context) ([]song.Song, error) {
 }
 
 func (s *Storage) FindSongByTitle(ctx context.Context, title string) (song.Song, error) {
-	var song song.Song
+	var songFound song.Song
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(songsBucket))
 
 		return b.ForEach(func(k, v []byte) error {
 			if string(k) == title {
-				if err := json.Unmarshal(v, &song); err != nil {
+				if err := json.Unmarshal(v, &songFound); err != nil {
 					s.logger.Error("Failed to unmarshal found song", "err", err)
 				}
 			}
@@ -135,9 +144,11 @@ func (s *Storage) FindSongByTitle(ctx context.Context, title string) (song.Song,
 		})
 	})
 
-	// s.logger.Info("The amount of songs for title", "title", title, "amount", len(songs))
+	if (songFound == song.Song{}) {
+		return song.Song{}, errSongNotFound
+	}
 
-	return song, err
+	return songFound, err
 }
 
 func (s *Storage) FindSongByCID(ctx context.Context, cid cid.Cid) (song.Song, error) {
