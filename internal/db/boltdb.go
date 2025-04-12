@@ -41,21 +41,17 @@ func InitDB(logger *slog.Logger) (*Storage, func() error, error) {
 		return nil
 	}
 
-	// Bucket fo paths
-	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte(pathsBucket))
-		return err
-	})
-	if err != nil {
-		return nil, closeDBConn, err
-	}
-
-	// Bucket for songs
 	err = db.Update(func(tx *bolt.Tx) error {
 		tx.DeleteBucket([]byte(songsBucket))
 
-		_, err := tx.CreateBucketIfNotExists([]byte(songsBucket))
-		return err
+		if _, err := tx.CreateBucketIfNotExists([]byte(pathsBucket)); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists([]byte(songsBucket)); err != nil {
+			return err
+		}
+
+		return nil
 	})
 	if err != nil {
 		return nil, closeDBConn, err
