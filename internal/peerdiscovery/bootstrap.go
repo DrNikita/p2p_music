@@ -36,7 +36,7 @@ func Bootstrap(
 
 	logger *slog.Logger,
 
-) (func() error, song.SongTableSynchronizer) {
+) (func() error, song.SongTableSynchronizer, song.SongTableStore) {
 	// Peer discovery
 	peerDiscoverer := NewDHTManager(h, logger)
 	kdht, err := peerDiscoverer.NewDHT(ctx, bootstrapPeers)
@@ -100,5 +100,5 @@ func Bootstrap(
 	// //////////////////
 	// .....TESTING......
 
-	return closeDBConn, songTable
+	return closeDBConn, songTable, store
 }

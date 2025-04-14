@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"p2p-music/internal/song"
 
@@ -13,14 +14,16 @@ type Tea struct {
 	selected map[int]struct{}
 
 	songTableManager song.SongTableSynchronizer
+	ts               song.SongTableStore
 }
 
-func InitTea(songTableManager song.SongTableSynchronizer) Tea {
+func InitTea(songTableManager song.SongTableSynchronizer, ts song.SongTableStore) Tea {
 	return Tea{
 		choices:  StartMenueChoice,
 		selected: make(map[int]struct{}),
 
 		songTableManager: songTableManager,
+		ts:               ts,
 	}
 }
 
@@ -66,6 +69,10 @@ func (t Tea) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch t.choices[t.cursor] {
 			case "Songs list":
 				songList := InitSongList()
+				songs, _ := t.ts.GetSongsList(context.Background())
+				for _, song := range songs {
+					songList.songs = append(songList.songs, song.Title)
+				}
 
 				return songList, nil
 			}
