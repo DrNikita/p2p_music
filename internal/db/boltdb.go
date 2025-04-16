@@ -63,22 +63,35 @@ func InitDB(logger *slog.Logger) (*Storage, func() error, error) {
 	}, closeDBConn, nil
 }
 
-func (s *Storage) AddSong(ctx context.Context, song song.Song) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+func (s *Storage) AddSong(ctx context.Context, pSong song.Song) (song.Song, error) {
+	var aSong song.Song
+
+	err := s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(songsBucket))
 
-		if existing := b.Get([]byte(song.Title)); existing != nil {
-			return errDuplicateKey
+		if existingSong, ok := s.checkSongIfExists(ctx, pSong); ok {
+			aSong = existingSong
+			return nil
 		}
 
-		songBytes, err := json.Marshal(song)
+		songBytes, err := json.Marshal(pSong)
 		if err != nil {
 			return err
 		}
+		aSong = pSong
 
-		return b.Put([]byte(song.Title), songBytes)
+		return b.Put([]byte(pSong.Title), songBytes)
 	})
+	if err != nil {
+		return song.Song{}, err
+	}
+
+	return aSong, nil
 }
+
+// func (s *Storage) UpdateSong(ctx context.Context, song song.Song) error {
+// 	return nil
+// }
 
 func (s *Storage) CreateSongsList(ctx context.Context, songs []song.Song) error {
 	return s.db.Batch(func(tx *bolt.Tx) error {
@@ -207,6 +220,36 @@ func (s *Storage) FindSongsByTitle(ctx context.Context, title string) ([]song.So
 // TODO: implement:)
 func (s *Storage) FindSongsWithParams(context.Context, song.Song) ([]song.Song, error) {
 	return nil, nil
+}
+
+func (s *Storage) checkSongIfExists(ctx context.Context, songParam song.Song) (song.Song, bool) {
+	var existingSong song.Song
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(songsBucket))
+
+		return b.ForEach(func(k, v []byte) error {
+			var vSong song.Song
+			if err := json.Unmarshal(v, &vSong); err != nil {
+				s.logger.Error("Failed to unmarshal found song", "err", err)
+			}
+
+			if titlesComparator(string(k), songParam.Title) > 80 {
+				existingSong = vSong
+				return nil
+			} else if vSong.CID == songParam.CID {
+				existingSong = vSong
+				return nil
+			}
+
+			return nil
+		})
+	})
+	if err != nil || existingSong.Title == "" || (existingSong.CID == cid.Cid{}) {
+		return existingSong, false
+	}
+
+	return existingSong, true
 }
 
 func (s *Storage) SaveFilePath(ctx context.Context, CID cid.Cid, path string) error {

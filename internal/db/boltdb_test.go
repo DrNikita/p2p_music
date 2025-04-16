@@ -81,7 +81,7 @@ func TestAddSong(t *testing.T) {
 				CID:   dummyCid,
 			},
 			testFunc: func(song song.Song) error {
-				if err := db.AddSong(ctx, song); err != nil {
+				if _, err := db.AddSong(ctx, song); err != nil {
 					return err
 				}
 				return nil
@@ -95,10 +95,10 @@ func TestAddSong(t *testing.T) {
 				CID:   dummyCid,
 			},
 			testFunc: func(song song.Song) error {
-				if err := db.AddSong(ctx, song); err != nil {
+				if _, err := db.AddSong(ctx, song); err != nil {
 					return err
 				}
-				if err := db.AddSong(ctx, song); err != nil {
+				if _, err := db.AddSong(ctx, song); err != nil {
 					return err
 				}
 				return nil
@@ -216,7 +216,7 @@ func TestFindSongByTitle(t *testing.T) {
 				CID:   dummyCid,
 			},
 			testFunc: func(s song.Song) (song.Song, error) {
-				if err := db.AddSong(ctx, s); err != nil {
+				if _, err := db.AddSong(ctx, s); err != nil {
 					return song.Song{}, err
 				}
 

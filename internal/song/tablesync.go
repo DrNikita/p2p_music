@@ -26,7 +26,7 @@ type SongTableStore interface {
 
 	FindSongsWithParams(context.Context, Song) ([]Song, error)
 
-	AddSong(context.Context, Song) error
+	AddSong(context.Context, Song) (Song, error)
 
 	CreateSongsList(context.Context, []Song) error
 }
@@ -114,7 +114,7 @@ func SetupSongTableSync(ctx context.Context, h host.Host, songTableStore SongTab
 				return
 			case song := <-songsChan:
 				logger.Info("New song received", "song title", song.Title)
-				if err := songTableStore.AddSong(ctx, *song); err != nil {
+				if _, err := songTableStore.AddSong(ctx, *song); err != nil {
 					logger.Error("Failed to add song to BoltDB", "err", err)
 				}
 			}
@@ -131,11 +131,6 @@ func (ts *SongTableSync) RegisterSongTableHandlers(ctx context.Context, h host.H
 func (ts *SongTableSync) AdvertiseSong(song Song) error {
 	songBytes, err := json.Marshal(song)
 	if err != nil {
-		return err
-	}
-
-	//TODO: mb it duplicates songs in SongTable
-	if err := ts.songTableStore.AddSong(ts.ctx, song); err != nil {
 		return err
 	}
 

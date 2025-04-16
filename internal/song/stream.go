@@ -82,7 +82,13 @@ func (dm *SongManager) PromoteSong(ctx context.Context, song Song, songFilePath 
 	}
 	dm.logger.Info("Successfully saved song file path", "path", songFilePath)
 
-	if err := dm.dht.Provide(ctx, song.CID, true); err != nil {
+	addedSong, err := dm.songTableStore.AddSong(ctx, song)
+	if err != nil {
+		dm.logger.Error("Failed to add song to BoltDB", "err", err)
+		return err
+	}
+
+	if err := dm.dht.Provide(ctx, addedSong.CID, true); err != nil {
 		dm.logger.Error("Failed to provide song", "err", err)
 		return PromoteSongError{
 			errMsg: err.Error(),
