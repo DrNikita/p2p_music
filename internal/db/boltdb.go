@@ -11,6 +11,7 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/google/uuid"
+	"github.com/hbollon/go-edlib"
 	"github.com/ipfs/go-cid"
 )
 
@@ -234,7 +235,12 @@ func (s *Storage) checkSongIfExists(ctx context.Context, songParam song.Song) (s
 				s.logger.Error("Failed to unmarshal found song", "err", err)
 			}
 
-			if titlesComparator(string(k), songParam.Title) > 80 {
+			match, err := edlib.StringsSimilarity(string(k), songParam.Title, edlib.JaroWinkler)
+			if err != nil {
+				s.logger.Error("Failed to compare songs titles", "err", err)
+			}
+
+			if match > 0.8 {
 				existingSong = vSong
 				return nil
 			} else if vSong.CID == songParam.CID {
@@ -245,7 +251,7 @@ func (s *Storage) checkSongIfExists(ctx context.Context, songParam song.Song) (s
 			return nil
 		})
 	})
-	if err != nil || existingSong.Title == "" || (existingSong.CID == cid.Cid{}) {
+	if err != nil || existingSong.Title == "" || (existingSong.CID == cid.Undef) {
 		return existingSong, false
 	}
 

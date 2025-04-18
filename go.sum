@@ -130,6 +130,8 @@ github.com/hashicorp/golang-lru v1.0.2 h1:dV3g9Z/unq5DpblPpw+Oqcv4dU/1omnb4Ok8iP
 github.com/hashicorp/golang-lru v1.0.2/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
+github.com/hbollon/go-edlib v1.6.0 h1:ga7AwwVIvP8mHm9GsPueC0d71cfRU/52hmPJ7Tprv4E=
+github.com/hbollon/go-edlib v1.6.0/go.mod h1:wnt6o6EIVEzUfgbUZY7BerzQ2uvzp354qmS2xaLkrhM=
 github.com/huin/goupnp v1.3.0 h1:UvLUlWDNpoUdYzb2TCn+MuTWtcjXKSza2n6CBdQ0xXc=
 github.com/huin/goupnp v1.3.0/go.mod h1:gnGPsThkYa7bFi/KWmEysQRf48l2dvR5bxr2OFckNX8=
 github.com/ipfs/boxo v0.29.1 h1:z61ZT4YDfTHLjXTsu/+3wvJ8aJlExthDSOCpx6Nh8xc=
