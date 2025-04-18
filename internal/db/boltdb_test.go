@@ -71,7 +71,7 @@ func TestAddSong(t *testing.T) {
 	testCases := []struct {
 		name     string
 		song     song.Song
-		testFunc func(song.Song) error
+		testFunc func(song.Song) (song.Song, error)
 		wantErr  error
 	}{
 		{
@@ -80,11 +80,12 @@ func TestAddSong(t *testing.T) {
 				Title: "test_title_1",
 				CID:   dummyCid,
 			},
-			testFunc: func(song song.Song) error {
-				if _, err := db.AddSong(ctx, song); err != nil {
-					return err
+			testFunc: func(s song.Song) (song.Song, error) {
+				saved, err := db.AddSong(ctx, s)
+				if err != nil {
+					return saved, err
 				}
-				return nil
+				return saved, err
 			},
 			wantErr: nil,
 		},
@@ -94,16 +95,22 @@ func TestAddSong(t *testing.T) {
 				Title: "test_title_1",
 				CID:   dummyCid,
 			},
-			testFunc: func(song song.Song) error {
-				if _, err := db.AddSong(ctx, song); err != nil {
-					return err
+			testFunc: func(s song.Song) (song.Song, error) {
+				_, err := db.AddSong(ctx, s)
+				if err != nil {
+					return song.Song{}, err
 				}
-				if _, err := db.AddSong(ctx, song); err != nil {
-					return err
+
+				sCopy := song.Song{
+					Title: s.Title,
 				}
-				return nil
+				duplicateTitleSave, err := db.AddSong(ctx, sCopy)
+				if err != nil {
+					return duplicateTitleSave, err
+				}
+				return duplicateTitleSave, err
 			},
-			wantErr: errDuplicateKey,
+			wantErr: nil,
 		},
 	}
 
@@ -116,11 +123,12 @@ func TestAddSong(t *testing.T) {
 		require.NoError(t, err)
 
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.testFunc(tc.song)
+			saved, err := tc.testFunc(tc.song)
 			if tc.wantErr != nil {
 				require.EqualError(t, err, tc.wantErr.Error())
 				return
 			}
+			require.Equal(t, tc.song.CID, saved.CID)
 			require.NoError(t, err)
 		})
 
